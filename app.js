@@ -83,6 +83,9 @@ const dateRange = (s, e) => {
   return `${fmt(new Date(s))} — ${fmt(new Date(e))}`;
 };
 const ntd = (n) => 'NT$' + Math.round(n).toLocaleString('en-US');
+// datetime-local input 用 "YYYY-MM-DDTHH:mm"，我們存成空格分隔較好讀
+const toLocalInput  = (s) => (s || '').replace(' ', 'T').slice(0, 16);
+const fromLocalInput = (s) => (s || '').replace('T', ' ');
 
 function toast(msg, ms = 2000) {
   const t = $('#toast');
@@ -218,7 +221,7 @@ function renderHome() {
             ${total > 0 ? `<span>${ntd(total)}</span>` : ''}
           </div>
         </div>
-        <button class="trip-card-del" data-trip-del="${id}" title="刪除">🗑</button>
+        <button class="trip-card-del" data-trip-del="${id}" title="刪除這趟行程" aria-label="刪除行程"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
       </article>`;
   }).join('');
   grid.querySelectorAll('.trip-card').forEach(c =>
@@ -442,10 +445,10 @@ function openFlightEditor(flightId) {
       <div class="field"><label>航班號</label><input id="m-flightNo" value="${escapeHtml(f.flightNo||'')}" placeholder="BR67" /></div></div>
     <div class="field-row"><div class="field"><label>出發城市</label><input id="m-from" value="${escapeHtml(f.from||'')}" placeholder="台北" /></div>
       <div class="field"><label>代碼</label><input id="m-fromCode" value="${escapeHtml(f.fromCode||'')}" maxlength="4" placeholder="TPE" /></div></div>
-    <div class="field"><label>出發時間</label><input id="m-depart" value="${escapeHtml(f.depart||'')}" placeholder="2026-07-12 23:30" /></div>
+    <div class="field"><label>出發時間</label><input id="m-depart" type="datetime-local" value="${toLocalInput(f.depart)}" /></div>
     <div class="field-row"><div class="field"><label>抵達城市</label><input id="m-to" value="${escapeHtml(f.to||'')}" placeholder="米蘭" /></div>
       <div class="field"><label>代碼</label><input id="m-toCode" value="${escapeHtml(f.toCode||'')}" maxlength="4" placeholder="MXP" /></div></div>
-    <div class="field"><label>抵達時間</label><input id="m-arrive" value="${escapeHtml(f.arrive||'')}" placeholder="2026-07-13 07:50" /></div>
+    <div class="field"><label>抵達時間</label><input id="m-arrive" type="datetime-local" value="${toLocalInput(f.arrive)}" /></div>
     <div class="field-row"><div class="field"><label>艙等</label><input id="m-cabin" value="${escapeHtml(f.cabin||'')}" /></div>
       <div class="field"><label>訂位代號</label><input id="m-bookingRef" value="${escapeHtml(f.bookingRef||'')}" /></div></div>`,
     () => {
@@ -453,7 +456,7 @@ function openFlightEditor(flightId) {
         type:$('#m-type').value, airline:$('#m-airline').value.trim(), flightNo:$('#m-flightNo').value.trim(),
         from:$('#m-from').value.trim(), fromCode:$('#m-fromCode').value.trim().toUpperCase(),
         to:$('#m-to').value.trim(), toCode:$('#m-toCode').value.trim().toUpperCase(),
-        depart:$('#m-depart').value.trim(), arrive:$('#m-arrive').value.trim(),
+        depart:fromLocalInput($('#m-depart').value), arrive:fromLocalInput($('#m-arrive').value),
         cabin:$('#m-cabin').value.trim(), bookingRef:$('#m-bookingRef').value.trim() });
       closeModal(); toast(flightId ? '已更新' : '已新增');
     },
