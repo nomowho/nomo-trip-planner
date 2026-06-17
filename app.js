@@ -19,7 +19,7 @@ const db = firebase.database();
 const tripsRef = db.ref('trips');
 
 // ── 常數 ───────────────────────────────────
-const PIN = '0806';
+const PIN = '0808';
 const SLOTS = [
   { key: 'morning',   label: 'MORNING · 早晨' },
   { key: 'noon',      label: 'NOON · 中午' },
