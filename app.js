@@ -173,6 +173,7 @@ function bindGlobalEvents() {
   $('#coverEditBtn').addEventListener('click', openCoverEditor);
   $('#coverTitle').addEventListener('blur', e => updateMeta({ title: e.target.textContent.trim() }));
   $('#coverCities').addEventListener('blur', e => updateMeta({ citiesText: e.target.textContent.trim() }));
+  $('#coverDates').addEventListener('click', openCoverEditor);
   $$('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   $$('[data-add]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.add === 'flight') openFlightEditor();
@@ -260,7 +261,7 @@ function renderCover() {
   const m = currentTrip.meta || {};
   $('#coverTitle').textContent = m.title || '點此編輯行程名稱';
   $('#coverCities').textContent = m.citiesText || '城市路線';
-  $('#coverDates').textContent = dateRange(m.startDate, m.endDate);
+  $('#coverDates').textContent = dateRange(m.startDate, m.endDate) || '＋ 設定日期';
   $('#coverImg').style.backgroundImage = m.coverPhoto ? `url("${m.coverPhoto}")` : '';
 }
 
