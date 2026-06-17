@@ -64,6 +64,7 @@ let currentTrip = null;
 let view = 'home';                 // 'home' | 'trip'
 let currentTab = 'itinerary';      // 'itinerary' | 'expenses'
 let sortables = [];
+let sortableDragging = false;
 
 // ── 工具 ───────────────────────────────────
 const $ = (s, el = document) => el.querySelector(s);
@@ -111,6 +112,7 @@ function enterAfterPin() {
   showHome();
   bootData();
   bindGlobalEvents();
+  initSwipeBack();
 }
 
 // ── 資料監聽 ───────────────────────────────
@@ -176,7 +178,17 @@ function bindGlobalEvents() {
   $$('[data-add]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.add === 'flight') openFlightEditor();
     if (b.dataset.add === 'hotel') openHotelEditor();
+    if (b.dataset.add === 'car') openCarEditor();
   }));
+  // 區段縮合切換
+  $$('.section-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.target);
+      if (!target) return;
+      target.hidden = !target.hidden;
+      btn.textContent = target.hidden ? '▶' : '▼';
+    });
+  });
   // 記帳
   $('#addExpenseBtn').addEventListener('click', () => openExpenseEditor());
   $('#editMembersBtn').addEventListener('click', openMembersEditor);
@@ -259,7 +271,7 @@ function updateMeta(patch) {
 }
 function renderTrip() {
   if (!currentTrip) return;
-  renderCover(); renderFlights(); renderHotels(); renderDays();
+  renderCover(); renderFlights(); renderHotels(); renderCars(); renderDays();
   if (currentTab === 'expenses') renderExpenses();
 }
 function renderCover() {
@@ -306,7 +318,7 @@ function renderHotels() {
         <div class="hotel-city">${escapeHtml(h.city||'')}</div>
         <h3 class="hotel-name">${escapeHtml(h.name||'未命名住宿')}</h3>
         <p class="hotel-dates">${escapeHtml(h.checkIn||'')} → ${escapeHtml(h.checkOut||'')} ${h.nights?'· '+h.nights+' 晚':''}</p>
-        <p class="hotel-addr">${escapeHtml(h.address||'')}</p>
+        <p class="hotel-addr">${h.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(h.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(h.address)}</a>` : ''}</p>
         ${h.note ? `<p class="hotel-note">${escapeHtml(h.note)}</p>` : ''}
       </div>
     </article>`).join('');
@@ -314,6 +326,29 @@ function renderHotels() {
 }
 function emptyHint(txt) {
   return `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--ink-soft);font-size:13px;border:1px dashed var(--rule);border-radius:8px;">${txt}</div>`;
+}
+
+// ── 租車 ───────────────────────────────────
+function renderCars() {
+  const grid = $('#carsGrid');
+  if (!grid) return;
+  const arr = Object.entries(currentTrip.cars || {}).map(([id, c]) => ({ id, ...c }))
+    .sort((a, b) => (a.pickupDate || '').localeCompare(b.pickupDate || ''));
+  if (!arr.length) { grid.innerHTML = emptyHint('尚無租車記錄，點右上 + 新增'); return; }
+  grid.innerHTML = arr.map(c => `
+    <article class="car-card" data-car-id="${c.id}">
+      <div class="car-icon">🚗</div>
+      <div class="car-body">
+        <div class="car-company">${escapeHtml(c.company || '租車公司')}</div>
+        <div class="car-type">${escapeHtml(c.carType || '車型未填')}</div>
+        <div class="car-dates">📅 ${escapeHtml(c.pickupDate || '')} → ${escapeHtml(c.returnDate || '')}</div>
+        ${c.pickupLocation ? `<div class="car-location">🔑 取車：${escapeHtml(c.pickupLocation)}</div>` : ''}
+        ${c.returnLocation ? `<div class="car-location">📥 還車：${escapeHtml(c.returnLocation)}</div>` : ''}
+        ${c.confirmNo ? `<div class="car-ref">確認碼 <strong>${escapeHtml(c.confirmNo)}</strong></div>` : ''}
+        ${c.note ? `<div class="car-note">${escapeHtml(c.note)}</div>` : ''}
+      </div>
+    </article>`).join('');
+  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', () => openCarEditor(c.dataset.carId)));
 }
 
 // ── 每日行程 ───────────────────────────────
@@ -362,7 +397,7 @@ function renderItem(dayId, slotKey, it) {
       <div class="item-icon">${icon}</div>
       <div class="item-title">${escapeHtml(it.title||'未命名')}</div>
       ${it.time ? `<div class="item-time">⏱ ${escapeHtml(it.time)}</div>` : ''}
-      ${it.address ? `<div class="item-meta">${escapeHtml(it.address)}</div>` : ''}
+      ${it.address ? `<div class="item-meta"><a href="https://maps.google.com/?q=${encodeURIComponent(it.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(it.address)}</a></div>` : ''}
       ${it.note ? `<div class="item-note">${escapeHtml(it.note)}</div>` : ''}
     </div>`;
 }
@@ -371,9 +406,10 @@ function renderItem(dayId, slotKey, it) {
 function initSortable() {
   sortables.forEach(s => s.destroy()); sortables = [];
   $$('.slot-items').forEach(c => sortables.push(Sortable.create(c, {
-    group: 'items', animation: 180, ghostClass: 'ghost', dragClass: 'dragging',
-    delay: 180, delayOnTouchOnly: true, touchStartThreshold: 5, fallbackTolerance: 5,
-    onEnd: handleDragEnd
+    group: 'items', animation: 150, ghostClass: 'ghost', dragClass: 'dragging',
+    delay: 80, delayOnTouchOnly: true, touchStartThreshold: 3, fallbackTolerance: 3,
+    onStart: () => { sortableDragging = true; },
+    onEnd: (evt) => { sortableDragging = false; handleDragEnd(evt); }
   })));
 }
 async function handleDragEnd(evt) {
@@ -488,6 +524,33 @@ function openHotelEditor(hotelId) {
     },
     hotelId ? () => { if (!confirm('刪除這筆住宿？')) return; tripsRef.child(currentTripId).child('hotels').child(hotelId).remove(); closeModal(); toast('已刪除'); } : null);
 }
+function openCarEditor(carId) {
+  const c = carId ? (currentTrip.cars?.[carId] || {}) : {};
+  openModal(carId ? '編輯租車' : '新增租車', `
+    <div class="field-row">
+      <div class="field"><label>租車公司</label><input id="m-company" value="${escapeHtml(c.company||'')}" placeholder="Europcar、Hertz..." /></div>
+      <div class="field"><label>車型</label><input id="m-carType" value="${escapeHtml(c.carType||'')}" placeholder="SUV、小型車..." /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>取車日</label><input id="m-pickupDate" type="date" value="${c.pickupDate||''}" /></div>
+      <div class="field"><label>還車日</label><input id="m-returnDate" type="date" value="${c.returnDate||''}" /></div>
+    </div>
+    <div class="field"><label>取車地點</label><input id="m-pickupLoc" value="${escapeHtml(c.pickupLocation||'')}" placeholder="威尼斯機場" /></div>
+    <div class="field"><label>還車地點</label><input id="m-returnLoc" value="${escapeHtml(c.returnLocation||'')}" placeholder="米蘭機場" /></div>
+    <div class="field"><label>確認碼 / 訂單號</label><input id="m-confirmNo" value="${escapeHtml(c.confirmNo||'')}" /></div>
+    <div class="field"><label>備註</label><textarea id="m-note">${escapeHtml(c.note||'')}</textarea></div>`,
+    () => {
+      tripsRef.child(currentTripId).child('cars').child(carId || 'car-'+uid()).set({
+        company: $('#m-company').value.trim(), carType: $('#m-carType').value.trim(),
+        pickupDate: $('#m-pickupDate').value, returnDate: $('#m-returnDate').value,
+        pickupLocation: $('#m-pickupLoc').value.trim(), returnLocation: $('#m-returnLoc').value.trim(),
+        confirmNo: $('#m-confirmNo').value.trim(), note: $('#m-note').value.trim()
+      });
+      closeModal(); toast(carId ? '已更新' : '已新增');
+    },
+    carId ? () => { if (!confirm('刪除這筆租車？')) return; tripsRef.child(currentTripId).child('cars').child(carId).remove(); closeModal(); toast('已刪除'); } : null);
+}
+
 function openCoverEditor() {
   const m = currentTrip?.meta || {};
   openModal('編輯封面', `
@@ -806,6 +869,22 @@ function exportTrip() {
   a.download = `${(currentTrip.meta?.title || 'trip').replace(/\s+/g,'-')}.json`;
   a.click(); URL.revokeObjectURL(a.href);
   toast('已匯出 JSON');
+}
+
+// ── 右滑返回（手機） ────────────────────────
+function initSwipeBack() {
+  let startX = 0, startY = 0;
+  document.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (view !== 'trip' || !$('#modal').hidden || sortableDragging) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    const dy = Math.abs(e.changedTouches[0].clientY - startY);
+    // 從左邊緣（50px 內）右滑超過 80px，且垂直偏移小
+    if (dx > 80 && dy < 70 && startX < 50) showHome();
+  }, { passive: true });
 }
 
 // ── 啟動 ───────────────────────────────────

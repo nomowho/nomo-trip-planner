@@ -85,19 +85,43 @@
     <!-- 航班 -->
     <section class="section">
       <div class="section-head">
-        <h2>FLIGHTS · 航班</h2>
+        <div class="section-head-title">
+          <button class="section-toggle" data-target="flightBody" title="展開 / 收起">▶</button>
+          <h2>FLIGHTS · 航班</h2>
+        </div>
         <button class="add-btn" data-add="flight">+ 新增航班</button>
       </div>
-      <div class="flights-grid" id="flightsGrid"></div>
+      <div id="flightBody" hidden>
+        <div class="flights-grid" id="flightsGrid"></div>
+      </div>
     </section>
 
     <!-- 住宿 -->
     <section class="section">
       <div class="section-head">
-        <h2>STAYS · 住宿</h2>
+        <div class="section-head-title">
+          <button class="section-toggle" data-target="hotelBody" title="展開 / 收起">▶</button>
+          <h2>STAYS · 住宿</h2>
+        </div>
         <button class="add-btn" data-add="hotel">+ 新增住宿</button>
       </div>
-      <div class="hotels-grid" id="hotelsGrid"></div>
+      <div id="hotelBody" hidden>
+        <div class="hotels-grid" id="hotelsGrid"></div>
+      </div>
+    </section>
+
+    <!-- 租車 -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-head-title">
+          <button class="section-toggle" data-target="carBody" title="展開 / 收起">▶</button>
+          <h2>RENTAL · 租車</h2>
+        </div>
+        <button class="add-btn" data-add="car">+ 新增租車</button>
+      </div>
+      <div id="carBody" hidden>
+        <div class="cars-grid" id="carsGrid"></div>
+      </div>
     </section>
 
     <!-- 每日行程 -->
