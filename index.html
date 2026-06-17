@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#1c1916" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="mobile-web-app-capable" content="yes" />
+<title>Trip Planner — 旅行行程共編</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ───────── PIN 鎖 ───────── -->
+<div id="pinGate" class="pin-gate">
+  <div class="pin-card">
+    <div class="pin-logo">✈</div>
+    <h1>Trip Planner</h1>
+    <p class="pin-sub">輸入 PIN 進入共編空間</p>
+    <input id="pinInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••" />
+    <button id="pinBtn">進入</button>
+    <p id="pinErr" class="pin-err" hidden>PIN 錯誤</p>
+  </div>
+</div>
+
+<!-- ───────── 旅程收納首頁 ───────── -->
+<main id="home" hidden>
+  <nav class="topnav">
+    <div class="brand">✈ Trip&nbsp;Planner</div>
+    <div class="nav-right">
+      <span id="syncDotHome" class="sync-dot" title="連線中"></span>
+      <button class="ghost-btn" id="lockBtnHome">鎖定</button>
+    </div>
+  </nav>
+
+  <header class="home-hero">
+    <p class="home-eyebrow">MY TRIPS · 我的旅程</p>
+    <h1>旅程收納櫃</h1>
+    <p class="home-sub">每一趟旅行的行程、航班、住宿與記帳，都收在這裡。</p>
+  </header>
+
+  <section class="home-grid-wrap">
+    <div class="trips-grid" id="tripsGrid"></div>
+    <button class="new-trip-card" id="newTripCard">
+      <span class="plus">＋</span>
+      <span>建立新旅程</span>
+      <small id="loadSampleInline">或載入多洛米蒂範例</small>
+    </button>
+  </section>
+
+  <footer class="footer">
+    <p>Nomo Trip Planner · 多人即時共編 · Firebase Realtime DB</p>
+  </footer>
+</main>
+
+<!-- ───────── 行程內頁 ───────── -->
+<main id="app" hidden>
+
+  <nav class="topnav">
+    <button class="back-btn" id="backBtn">←&nbsp;我的旅程</button>
+    <div class="tabs">
+      <button class="tab active" data-tab="itinerary">📋 行程</button>
+      <button class="tab" data-tab="expenses">💰 記帳</button>
+    </div>
+    <div class="nav-right">
+      <span id="syncDot" class="sync-dot" title="連線中"></span>
+      <button class="ghost-btn" id="exportBtn">匯出</button>
+      <button class="ghost-btn" id="lockBtn">鎖定</button>
+    </div>
+  </nav>
+
+  <!-- ===== TAB：行程 ===== -->
+  <div id="tab-itinerary" class="tab-panel">
+    <!-- 封面 -->
+    <header class="cover" id="cover">
+      <div class="cover-img" id="coverImg"></div>
+      <div class="cover-overlay">
+        <p class="cover-eyebrow" id="coverEyebrow">A JOURNEY · 旅行誌</p>
+        <h1 class="cover-title" id="coverTitle" contenteditable spellcheck="false">點此編輯行程名稱</h1>
+        <p class="cover-cities" id="coverCities" contenteditable spellcheck="false">城市路線</p>
+        <p class="cover-dates" id="coverDates"></p>
+      </div>
+      <button class="cover-edit-btn" id="coverEditBtn">編輯封面</button>
+    </header>
+
+    <!-- 航班 -->
+    <section class="section">
+      <div class="section-head">
+        <h2>FLIGHTS · 航班</h2>
+        <button class="add-btn" data-add="flight">+ 新增航班</button>
+      </div>
+      <div class="flights-grid" id="flightsGrid"></div>
+    </section>
+
+    <!-- 住宿 -->
+    <section class="section">
+      <div class="section-head">
+        <h2>STAYS · 住宿</h2>
+        <button class="add-btn" data-add="hotel">+ 新增住宿</button>
+      </div>
+      <div class="hotels-grid" id="hotelsGrid"></div>
+    </section>
+
+    <!-- 每日行程 -->
+    <section class="section section-days">
+      <div class="section-head">
+        <h2>ITINERARY · 每日行程</h2>
+        <button class="add-btn" id="addDayBtn">+ 新增一天</button>
+      </div>
+      <div class="days-list" id="daysList"></div>
+    </section>
+  </div>
+
+  <!-- ===== TAB：記帳 ===== -->
+  <div id="tab-expenses" class="tab-panel" hidden>
+    <section class="section">
+      <!-- 摘要列 -->
+      <div class="expense-summary" id="expenseSummary"></div>
+
+      <!-- 成員 + 匯率 設定 -->
+      <div class="expense-config">
+        <div class="config-block">
+          <span class="config-label">成員</span>
+          <div class="members-chips" id="membersChips"></div>
+          <button class="ghost-btn small" id="editMembersBtn">編輯成員</button>
+        </div>
+        <div class="config-block">
+          <span class="config-label">匯率（1 外幣 = ? 台幣）</span>
+          <div class="rates-chips" id="ratesChips"></div>
+          <button class="ghost-btn small" id="editRatesBtn">設定匯率</button>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <h2>EXPENSES · 支出明細</h2>
+        <button class="add-btn" id="addExpenseBtn">+ 記一筆</button>
+      </div>
+      <div class="expense-list" id="expenseList"></div>
+
+      <!-- 分帳結算 -->
+      <div class="section-head" style="margin-top:36px;">
+        <h2>SETTLEMENT · 分帳結算</h2>
+      </div>
+      <div class="settlement" id="settlement"></div>
+    </section>
+  </div>
+
+  <footer class="footer">
+    <p>Nomo Trip Planner · 拖曳行程可跨時段／跨日 · 記帳支援多幣別換算與均分結算</p>
+  </footer>
+</main>
+
+<!-- ───────── 通用編輯彈窗 ───────── -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <header>
+      <h3 id="modalTitle">編輯</h3>
+      <button class="modal-close" id="modalClose">×</button>
+    </header>
+    <div class="modal-body" id="modalBody"></div>
+    <footer>
+      <button class="ghost-btn danger" id="modalDelete" hidden>刪除</button>
+      <div style="flex:1"></div>
+      <button class="ghost-btn" id="modalCancel">取消</button>
+      <button class="primary-btn" id="modalSave">儲存</button>
+    </footer>
+  </div>
+</div>
+
+<!-- 隱藏的收據拍照 input -->
+<input type="file" id="receiptInput" accept="image/*" capture="environment" hidden />
+
+<!-- 小提示 toast -->
+<div id="toast" class="toast" hidden></div>
+
+<!-- ───────── 依賴 ───────── -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

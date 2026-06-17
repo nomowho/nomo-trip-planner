@@ -1,0 +1,267 @@
+{
+  "meta": {
+    "title": "多洛米蒂 × 義大利北部自駕 8 日",
+    "citiesText": "Milano — Verona — Bolzano — Val Gardena — Cortina — Venezia",
+    "startDate": "2026-07-12",
+    "endDate": "2026-07-20",
+    "coverPhoto": "https://images.unsplash.com/photo-1505765050516-f72dcac9c60e?w=1600&q=80",
+    "members": ["NOMO", "太太", "爸", "媽"],
+    "homeCurrency": "TWD",
+    "rates": { "EUR": 34.5, "USD": 32.2, "JPY": 0.22 }
+  },
+  "flights": {
+    "flt-out": {
+      "type": "outbound",
+      "airline": "長榮航空",
+      "flightNo": "BR67",
+      "from": "Taipei",
+      "fromCode": "TPE",
+      "to": "Milano Malpensa",
+      "toCode": "MXP",
+      "depart": "2026-07-12 23:30",
+      "arrive": "2026-07-13 07:50",
+      "cabin": "經濟艙",
+      "bookingRef": ""
+    },
+    "flt-ret": {
+      "type": "return",
+      "airline": "長榮航空",
+      "flightNo": "BR68",
+      "from": "Milano Malpensa",
+      "fromCode": "MXP",
+      "to": "Taipei",
+      "toCode": "TPE",
+      "depart": "2026-07-19 23:50",
+      "arrive": "2026-07-20 18:00",
+      "cabin": "經濟艙",
+      "bookingRef": ""
+    }
+  },
+  "hotels": {
+    "htl-verona": {
+      "name": "Hotel Accademia",
+      "city": "Verona",
+      "checkIn": "2026-07-13",
+      "checkOut": "2026-07-14",
+      "nights": 1,
+      "address": "Via Scala 12, 37121 Verona VR, Italy",
+      "note": "市中心步行可達 Piazza Erbe，附停車場（需預訂）",
+      "photo": ""
+    },
+    "htl-bolzano": {
+      "name": "Parkhotel Laurin",
+      "city": "Bolzano",
+      "checkIn": "2026-07-14",
+      "checkOut": "2026-07-15",
+      "nights": 1,
+      "address": "Via Laurin 4, 39100 Bolzano BZ, Italy",
+      "note": "百年裝飾藝術風格飯店，提供山岳早餐",
+      "photo": ""
+    },
+    "htl-ortisei": {
+      "name": "Hotel Adler Spa Resort Dolomiti",
+      "city": "Ortisei (Val Gardena)",
+      "checkIn": "2026-07-15",
+      "checkOut": "2026-07-16",
+      "nights": 1,
+      "address": "Rezia Str. 7, 39046 Urtijëi BZ, Italy",
+      "note": "山景房 + Spa；步行 3 分鐘到纜車站",
+      "photo": ""
+    },
+    "htl-cortina": {
+      "name": "Grand Hotel Savoia Cortina d'Ampezzo",
+      "city": "Cortina d'Ampezzo",
+      "checkIn": "2026-07-16",
+      "checkOut": "2026-07-18",
+      "nights": 2,
+      "address": "Via Roma 62, 32043 Cortina d'Ampezzo BL, Italy",
+      "note": "兩晚連住；多洛米蒂中心點，去 Tre Cime / Braies 都方便",
+      "photo": ""
+    },
+    "htl-venezia": {
+      "name": "Hotel Cipriani, A Belmond Hotel",
+      "city": "Venezia",
+      "checkIn": "2026-07-18",
+      "checkOut": "2026-07-19",
+      "nights": 1,
+      "address": "Giudecca 10, 30133 Venezia VE, Italy",
+      "note": "Giudecca 島上私人接駁船，飯店有泳池與聖馬可廣場景觀",
+      "photo": ""
+    }
+  },
+  "days": {
+    "day-01": {
+      "date": "2026-07-12",
+      "city": "Taipei → Milano",
+      "slots": {
+        "evening": {
+          "item-d1-1": { "type": "transit", "title": "出發前往桃園機場", "time": "20:00", "address": "T2 出境大廳", "note": "建議提早 3 小時抵達；行李超重費請現場結", "order": 0 }
+        },
+        "night": {
+          "item-d1-2": { "type": "transit", "title": "BR67 夜航米蘭", "time": "23:30 起飛", "address": "TPE → MXP", "note": "13 小時飛行；窗邊座位已劃位", "order": 0 }
+        }
+      }
+    },
+    "day-02": {
+      "date": "2026-07-13",
+      "city": "Milano → Verona",
+      "slots": {
+        "morning": {
+          "item-d2-1": { "type": "transit", "title": "抵達米蘭 Malpensa", "time": "07:50", "address": "MXP 機場", "note": "領行李 → Hertz/Sixt 取車（已預訂 SUV 中型自排）", "order": 0 },
+          "item-d2-2": { "type": "cafe", "title": "Bar Luce by Wes Anderson", "time": "10:00", "address": "Largo Isarco 2, Milano", "note": "Prada Fondazione 的 Wes Anderson 風格咖啡館，先補眠+咖啡因", "order": 1 }
+        },
+        "noon": {
+          "item-d2-3": { "type": "restaurant", "title": "Trattoria Milanese", "time": "12:30", "address": "Via Santa Marta 11, Milano", "note": "米蘭傳統燉牛膝 (ossobuco) 與番紅花燉飯", "budget": "€45/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d2-4": { "type": "transit", "title": "開車前往 Verona", "time": "14:30", "address": "A4 高速公路 · 約 1h45m", "note": "路上會經過 Brescia；ETC tag 已裝", "order": 0 }
+        },
+        "evening": {
+          "item-d2-5": { "type": "view", "title": "Piazza Bra 與圓形競技場散步", "time": "18:00", "address": "Piazza Bra, Verona", "note": "夏季有歌劇節，若遇演出可預訂；廣場咖啡看夕陽", "order": 0 },
+          "item-d2-6": { "type": "spot", "title": "茱麗葉之家 Casa di Giulietta", "time": "19:00", "address": "Via Cappello 23, Verona", "note": "外觀拍照即可，內部排隊不值得", "order": 1 }
+        },
+        "night": {
+          "item-d2-7": { "type": "restaurant", "title": "Antica Bottega del Vino", "time": "20:00", "address": "Via Scudo di Francia 3, Verona", "note": "Valpolicella 老酒窖；推薦 Amarone 配馬肉燉飯", "budget": "€70/人", "order": 0 }
+        }
+      }
+    },
+    "day-03": {
+      "date": "2026-07-14",
+      "city": "Verona → Lake Garda → Bolzano",
+      "slots": {
+        "morning": {
+          "item-d3-1": { "type": "view", "title": "Sirmione 半島 + Grotte di Catullo", "time": "10:00", "address": "Sirmione, Lake Garda", "note": "古羅馬別墅遺跡 + 加爾達湖景；走湖邊步道", "order": 0 }
+        },
+        "noon": {
+          "item-d3-2": { "type": "restaurant", "title": "Ristorante La Rucola 2.0", "time": "13:00", "address": "Vicolo Strentelle 7, Sirmione", "note": "米其林一星 · 預訂窗邊位看湖", "budget": "€95/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d3-3": { "type": "transit", "title": "Garda → Bolzano (A22 北上)", "time": "15:30", "address": "A22 Brennero 公路 · 約 2h", "note": "進入 Alto Adige，建築與語言開始德語化", "order": 0 }
+        },
+        "evening": {
+          "item-d3-4": { "type": "spot", "title": "Bolzano 老城 + Walther 廣場", "time": "18:00", "address": "Piazza Walther, Bolzano", "note": "義德雙語城市；拱廊街道值得慢慢走", "order": 0 }
+        },
+        "night": {
+          "item-d3-5": { "type": "restaurant", "title": "Vögele", "time": "20:00", "address": "Via Goethe 3, Bolzano", "note": "Tyrolean 在地菜：Speck、Knödel 餃子、燉鹿肉", "budget": "€50/人", "order": 0 }
+        }
+      }
+    },
+    "day-04": {
+      "date": "2026-07-15",
+      "city": "Bolzano → Val Gardena (Ortisei)",
+      "slots": {
+        "morning": {
+          "item-d4-1": { "type": "view", "title": "Lago di Carezza 卡雷札湖", "time": "09:00", "address": "Karersee, 39056 Welschnofen BZ", "note": "玫瑰石山倒映綠湖；早上光線最好，停車場 €1/h", "order": 0 }
+        },
+        "noon": {
+          "item-d4-2": { "type": "restaurant", "title": "Rifugio Fronza alle Coronelle", "time": "12:30", "address": "Catinaccio massif", "note": "山屋午餐，纜車上去；起司義大利餃 (Schlutzkrapfen)", "budget": "€30/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d4-3": { "type": "transit", "title": "開往 Ortisei (Val Gardena)", "time": "15:00", "address": "SS242 · 約 50min", "note": "山路彎多但鋪面好；風景處處想停車", "order": 0 },
+          "item-d4-4": { "type": "activity", "title": "Seceda 纜車登頂", "time": "16:30", "address": "Funivia Ortisei-Furnes-Seceda", "note": "多洛米蒂最經典的鋸齒山稜線，傍晚最美", "budget": "€42/人 來回", "order": 1 }
+        },
+        "evening": {
+          "item-d4-5": { "type": "view", "title": "Ortisei 鎮上散步", "time": "19:00", "address": "Strada Rezia, Ortisei", "note": "Ladin 文化區；木雕工藝、教堂尖塔", "order": 0 }
+        },
+        "night": {
+          "item-d4-6": { "type": "restaurant", "title": "Concordia", "time": "20:00", "address": "Strada Roma 41, Ortisei", "note": "經典 Tyrolean，可訂窗邊看 Sassolungo", "budget": "€55/人", "order": 0 }
+        }
+      }
+    },
+    "day-05": {
+      "date": "2026-07-16",
+      "city": "Val Gardena → Cortina d'Ampezzo",
+      "slots": {
+        "morning": {
+          "item-d5-1": { "type": "view", "title": "Passo Sella 山口", "time": "09:30", "address": "Passo Sella, BZ/TN", "note": "Sassolungo 與 Sella 群山環繞；360° 視野", "order": 0 },
+          "item-d5-2": { "type": "view", "title": "Passo Pordoi 纜車", "time": "11:00", "address": "Funivia Sass Pordoi", "note": "上到 2950m 觀景台；天氣不佳就跳過", "budget": "€28/人", "order": 1 }
+        },
+        "noon": {
+          "item-d5-3": { "type": "restaurant", "title": "Rifugio Lagazuoi", "time": "13:00", "address": "Passo Falzarego 山屋", "note": "傳奇陽台景觀；建議搭纜車上去，午餐+一戰隧道遺跡", "budget": "€35/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d5-4": { "type": "view", "title": "Cinque Torri 五塔", "time": "15:30", "address": "Cinque Torri, BL", "note": "短程環狀步道 1.5h；一戰露天博物館", "order": 0 }
+        },
+        "evening": {
+          "item-d5-5": { "type": "transit", "title": "進駐 Cortina (連住兩晚)", "time": "18:00", "address": "Cortina d'Ampezzo", "note": "Grand Hotel Savoia check-in；行李寄放後散步去 Corso Italia", "order": 0 }
+        },
+        "night": {
+          "item-d5-6": { "type": "restaurant", "title": "SanBrite Alpine Casual Restaurant", "time": "20:00", "address": "Località Alverà 11, Cortina", "note": "米其林一星 + 綠星；自家牧場食材，要早訂", "budget": "€120/人", "order": 0 }
+        }
+      }
+    },
+    "day-06": {
+      "date": "2026-07-17",
+      "city": "Cortina · Tre Cime · Lago di Braies",
+      "slots": {
+        "morning": {
+          "item-d6-1": { "type": "view", "title": "Lago di Braies 布萊耶斯湖", "time": "06:30", "address": "Lago di Braies, BZ", "note": "⚠ 旺季需預約停車；六點抵達能避開人潮，反射最美", "order": 0 }
+        },
+        "noon": {
+          "item-d6-2": { "type": "restaurant", "title": "Hotel Lago di Braies 餐廳", "time": "12:00", "address": "Lago di Braies", "note": "湖邊老飯店，戶外座位看湖；簡餐為主", "budget": "€40/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d6-3": { "type": "view", "title": "Tre Cime di Lavaredo 三尖峰", "time": "14:30", "address": "Rifugio Auronzo (停車場 €30)", "note": "經典環狀步道 10km / 3-4h；中等難度", "order": 0 }
+        },
+        "evening": {
+          "item-d6-4": { "type": "view", "title": "Lago di Misurina 米蘇里納湖", "time": "18:30", "address": "Lago di Misurina, BL", "note": "順路回 Cortina；湖邊咖啡看夕陽", "order": 0 }
+        },
+        "night": {
+          "item-d6-5": { "type": "restaurant", "title": "Tivoli 1922", "time": "20:30", "address": "Località Lacedel 34, Cortina", "note": "米其林一星，傳統 Ampezzano 料理；山景晚餐", "budget": "€95/人", "order": 0 }
+        }
+      }
+    },
+    "day-07": {
+      "date": "2026-07-18",
+      "city": "Cortina → Venezia",
+      "slots": {
+        "morning": {
+          "item-d7-1": { "type": "spot", "title": "Cortina 早市 + 教堂", "time": "09:00", "address": "Corso Italia, Cortina", "note": "週六市集；採購 Speck 與蘋果汁伴手禮", "order": 0 }
+        },
+        "noon": {
+          "item-d7-2": { "type": "transit", "title": "開車前往威尼斯 (還車)", "time": "11:00", "address": "Cortina → Venezia Mestre · 約 2h30m", "note": "Hertz Mestre 站還車；轉乘水上計程車入威尼斯", "order": 0 }
+        },
+        "afternoon": {
+          "item-d7-3": { "type": "transit", "title": "Cipriani 私人接駁船", "time": "15:00", "address": "San Marco 碼頭", "note": "飯店提供免費接駁；行李直送房間", "order": 0 },
+          "item-d7-4": { "type": "view", "title": "Giudecca 島散步", "time": "16:30", "address": "Giudecca, Venezia", "note": "比本島安靜許多；看對岸聖馬可", "order": 1 }
+        },
+        "evening": {
+          "item-d7-5": { "type": "view", "title": "聖馬可廣場黃昏 + Caffè Florian", "time": "18:30", "address": "Piazza San Marco, Venezia", "note": "Florian 百年咖啡館，露天樂團演奏（咖啡 €15）", "order": 0 }
+        },
+        "night": {
+          "item-d7-6": { "type": "restaurant", "title": "Oro Restaurant (Cipriani)", "time": "20:30", "address": "Hotel Cipriani, Giudecca", "note": "米其林一星，威尼斯潟湖景；建議訂窗邊", "budget": "€180/人", "order": 0 }
+        }
+      }
+    },
+    "day-08": {
+      "date": "2026-07-19",
+      "city": "Venezia → Milano → 返台",
+      "slots": {
+        "morning": {
+          "item-d8-1": { "type": "view", "title": "搭傳統 Vaporetto No.1 大運河遊覽", "time": "09:00", "address": "Vaporetto Line 1 全線", "note": "比貢多拉划算太多；從 Piazzale Roma → San Marco 約 45min", "order": 0 }
+        },
+        "noon": {
+          "item-d8-2": { "type": "restaurant", "title": "Trattoria Alla Madonna", "time": "12:30", "address": "Calle de la Madonna 594, Venezia", "note": "Rialto 橋附近老店；海鮮義大利麵與墨魚汁麵", "budget": "€55/人", "order": 0 }
+        },
+        "afternoon": {
+          "item-d8-3": { "type": "shopping", "title": "Murano 玻璃島", "time": "14:30", "address": "Murano, Venezia", "note": "Vaporetto Line 12；挑一兩家工坊看吹製，買酒杯", "order": 0 }
+        },
+        "evening": {
+          "item-d8-4": { "type": "transit", "title": "Frecciarossa 高鐵回米蘭", "time": "17:55", "address": "Venezia S. Lucia → Milano Centrale · 2h25m", "note": "已預訂 Business 艙；19:45 抵達米蘭中央", "order": 0 }
+        },
+        "night": {
+          "item-d8-5": { "type": "transit", "title": "搭 Malpensa Express 至機場", "time": "21:00", "address": "Milano Centrale → MXP · 50min", "note": "提早 2.5h 到機場；T1 出境", "order": 0 },
+          "item-d8-6": { "type": "transit", "title": "BR68 返台", "time": "23:50 起飛", "address": "MXP → TPE", "note": "預計 7/20 18:00 抵達桃園", "order": 1 }
+        }
+      }
+    }
+  },
+  "expenses": {
+    "exp-1": { "title": "SanBrite 米其林晚餐", "amount": 480, "currency": "EUR", "category": "food", "date": "2026-07-16", "paidBy": "NOMO", "shared": true, "splitWith": ["NOMO", "太太", "爸", "媽"], "createdAt": 1 },
+    "exp-2": { "title": "Cortina 加油", "amount": 75, "currency": "EUR", "category": "transit", "date": "2026-07-14", "paidBy": "爸", "shared": true, "splitWith": ["NOMO", "太太", "爸", "媽"], "createdAt": 2 },
+    "exp-3": { "title": "Tre Cime 停車費", "amount": 30, "currency": "EUR", "category": "ticket", "date": "2026-07-17", "paidBy": "NOMO", "shared": true, "splitWith": ["NOMO", "太太", "爸", "媽"], "createdAt": 3 },
+    "exp-4": { "title": "Murano 手工玻璃酒杯", "amount": 220, "currency": "EUR", "category": "shopping", "date": "2026-07-19", "paidBy": "太太", "shared": false, "splitWith": [], "createdAt": 4 },
+    "exp-5": { "title": "Bolzano 超市採買", "amount": 56.4, "currency": "EUR", "category": "grocery", "date": "2026-07-15", "paidBy": "媽", "shared": true, "splitWith": ["NOMO", "太太", "爸", "媽"], "createdAt": 5 },
+    "exp-6": { "title": "Cipriani 潟湖景晚餐", "amount": 720, "currency": "EUR", "category": "food", "date": "2026-07-18", "paidBy": "NOMO", "shared": true, "splitWith": ["NOMO", "太太"], "createdAt": 6 }
+  }
+}
