@@ -60,6 +60,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="itinerary">📋 行程</button>
       <button class="tab" data-tab="expenses">💰 記帳</button>
+      <button class="tab" data-tab="guide">🗺️ 首爾</button>
     </div>
     <div class="nav-right">
       <span id="syncDot" class="sync-dot" title="連線中"></span>
@@ -134,6 +135,23 @@
     </section>
   </div>
 
+  <!-- ===== TAB：首爾景點庫 ===== -->
+  <div id="tab-guide" class="tab-panel" hidden>
+    <div class="guide-hero">
+      <p class="guide-eyebrow">SEOUL GUIDE · 首爾景點庫</p>
+      <h2>景點 · 咖啡廳 · 餐廳 · 購物</h2>
+      <p>點「+ 加入行程」可直接選日期與時間段寫入行程</p>
+    </div>
+    <div class="guide-filter-bar" id="guideFilterBar">
+      <button class="guide-filter active" data-filter="all">全部</button>
+      <button class="guide-filter" data-filter="spot">景點美術館</button>
+      <button class="guide-filter" data-filter="cafe">咖啡廳</button>
+      <button class="guide-filter" data-filter="restaurant">餐廳</button>
+      <button class="guide-filter" data-filter="shopping">購物</button>
+    </div>
+    <div class="guide-spots-grid" id="guideSpotsGrid"></div>
+  </div>
+
   <!-- ===== TAB：記帳 ===== -->
   <div id="tab-expenses" class="tab-panel" hidden>
     <section class="section">
@@ -201,6 +219,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="guide-data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

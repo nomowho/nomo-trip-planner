@@ -160,7 +160,9 @@ function switchTab(tab) {
   $$('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   $('#tab-itinerary').hidden = tab !== 'itinerary';
   $('#tab-expenses').hidden = tab !== 'expenses';
+  $('#tab-guide').hidden = tab !== 'guide';
   if (tab === 'expenses') renderExpenses();
+  if (tab === 'guide') renderGuide();
 }
 
 // ── 全域事件 ───────────────────────────────
@@ -188,6 +190,14 @@ function bindGlobalEvents() {
       target.hidden = !target.hidden;
       btn.textContent = target.hidden ? '▶' : '▼';
     });
+  });
+  // 景點庫篩選
+  $('#guideFilterBar')?.addEventListener('click', e => {
+    const btn = e.target.closest('.guide-filter');
+    if (!btn) return;
+    $$('.guide-filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGuide();
   });
   // 記帳
   $('#addExpenseBtn').addEventListener('click', () => openExpenseEditor());
@@ -869,6 +879,82 @@ function exportTrip() {
   a.download = `${(currentTrip.meta?.title || 'trip').replace(/\s+/g,'-')}.json`;
   a.click(); URL.revokeObjectURL(a.href);
   toast('已匯出 JSON');
+}
+
+// ════════════════════════════════════════════
+//  首爾景點庫
+// ════════════════════════════════════════════
+const GUIDE_CAT_LABEL = { spot: '景點美術館', cafe: '咖啡廳', restaurant: '餐廳', shopping: '購物' };
+const GUIDE_TO_TYPE   = { spot: 'spot', cafe: 'cafe', restaurant: 'restaurant', shopping: 'shopping' };
+
+function renderGuide() {
+  const activeFilter = $('.guide-filter.active')?.dataset.filter || 'all';
+  const spots = activeFilter === 'all' ? GUIDE_SPOTS : GUIDE_SPOTS.filter(s => s.cat === activeFilter);
+  const grid = $('#guideSpotsGrid');
+  if (!spots.length) { grid.innerHTML = `<div class="guide-empty">沒有符合的景點</div>`; return; }
+  grid.innerHTML = spots.map(s => `
+    <div class="guide-spot-card">
+      <div class="guide-spot-img" style="background-image:url('${escapeHtml(s.img)}')">
+        <span class="guide-spot-tag guide-tag-${escapeHtml(s.cat)}">${escapeHtml(GUIDE_CAT_LABEL[s.cat] || s.cat)}</span>
+      </div>
+      <div class="guide-spot-body">
+        <p class="guide-spot-district">${escapeHtml(s.district)}</p>
+        <h3 class="guide-spot-name">${escapeHtml(s.name)}</h3>
+        <p class="guide-spot-ko">${escapeHtml(s.nameKo)}</p>
+        ${s.hours ? `<p class="guide-spot-hours">⏰ ${escapeHtml(s.hours)}</p>` : ''}
+        ${s.tip ? `<p class="guide-spot-tip">💡 ${escapeHtml(s.tip)}</p>` : ''}
+        <button class="add-to-trip-btn" data-spot-id="${escapeHtml(s.id)}">+ 加入行程</button>
+      </div>
+    </div>`).join('');
+
+  $$('.add-to-trip-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const spot = GUIDE_SPOTS.find(s => s.id === btn.dataset.spotId);
+      if (spot) openSpotAdder(spot);
+    });
+  });
+}
+
+function openSpotAdder(spot) {
+  const days = Object.entries(currentTrip?.days || {})
+    .sort(([, a], [, b]) => (a.date || '').localeCompare(b.date || ''));
+  if (!days.length) { toast('請先在「行程」tab 新增旅行日期'); return; }
+
+  const dayOpts = days.map(([id, d], i) =>
+    `<option value="${id}">Day ${String(i+1).padStart(2,'0')} · ${fmtDate(d.date) || id} · ${escapeHtml(d.city || '')}</option>`
+  ).join('');
+  const slotOpts = SLOTS.map(s =>
+    `<option value="${s.key}">${s.label}</option>`
+  ).join('');
+
+  openModal(`加入行程 — ${spot.name}`, `
+    <div class="field"><label>選擇日期</label><select id="m-spot-day">${dayOpts}</select></div>
+    <div class="field"><label>時間段</label><select id="m-spot-slot">${slotOpts}</select></div>
+    <div class="field"><label>時間（選填）</label><input id="m-spot-time" type="text" placeholder="09:00" /></div>`,
+    () => {
+      const dayId   = $('#m-spot-day').value;
+      const slotKey = $('#m-spot-slot').value;
+      const time    = $('#m-spot-time').value.trim();
+      const existing = currentTrip.days?.[dayId]?.slots?.[slotKey] || {};
+      const order = Object.keys(existing).length;
+      const itemId = 'item-' + uid();
+      tripsRef.child(currentTripId).child('days').child(dayId)
+        .child('slots').child(slotKey).child(itemId).set({
+          type:    GUIDE_TO_TYPE[spot.cat] || 'spot',
+          title:   spot.name,
+          address: spot.addr || '',
+          note:    spot.nameKo || '',
+          time:    time,
+          budget:  '',
+          url:     '',
+          order:   order
+        });
+      closeModal();
+      const dayIdx = days.findIndex(([id]) => id === dayId) + 1;
+      const slotLabel = SLOTS.find(s => s.key === slotKey)?.label || slotKey;
+      toast(`✓ 已加入 Day ${dayIdx} · ${slotLabel}`);
+    }
+  );
 }
 
 // ── 右滑返回（手機） ────────────────────────
