@@ -405,6 +405,14 @@ a { color: var(--accent); text-decoration: none; }
 .field input:focus, .field textarea:focus, .field select:focus { outline: none; border-color: var(--accent); }
 .field textarea { resize: vertical; min-height: 70px; font-family: var(--sans); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.move-to-row {
+  margin-top: 8px; padding-top: 16px;
+  border-top: 1px dashed var(--rule);
+}
+.move-to-label {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); font-weight: 600; margin: 0 0 12px;
+}
 
 /* ── Toast ────────────────────────────────── */
 .toast {

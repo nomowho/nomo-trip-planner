@@ -377,19 +377,15 @@ function renderDays() {
       <article class="day-card" data-day-id="${id}">
         <header class="day-head">
           <div class="day-num"><span class="day-label">DAY</span><span class="day-n">${String(idx+1).padStart(2,'0')}</span></div>
-          <div class="day-info"><input type="date" class="day-date-input" value="${d.date||''}" data-day-id="${id}" title="點擊更改日期" /><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
-          <div class="day-actions"><button class="del" data-day-del="${id}">刪除</button></div>
+          <div class="day-info"><span class="day-date">${fmtDate(d.date)||'（未設定日期）'}</span><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
+          <div class="day-actions"><button data-day-edit="${id}">編輯日期</button><button class="del" data-day-del="${id}">刪除</button></div>
         </header>
         <div class="slots">${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}</div>
       </article>`;
   }).join('');
   list.querySelectorAll('[data-day-city]').forEach(el => el.addEventListener('blur', () =>
     tripsRef.child(currentTripId).child('days').child(el.dataset.dayCity).update({ city: el.textContent.trim() })));
-  list.querySelectorAll('.day-date-input').forEach(input => input.addEventListener('change', () => {
-    pendingScrollDayId = input.dataset.dayId;
-    tripsRef.child(currentTripId).child('days').child(input.dataset.dayId).update({ date: input.value });
-    toast('日期已更新');
-  }));
+  list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', () => openDayEditor(b.dataset.dayEdit)));
   list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', () => deleteDay(b.dataset.dayDel)));
   list.querySelectorAll('.slot-add').forEach(b => b.addEventListener('click', () => openItemEditor(null, b.dataset.dayId, b.dataset.slotKey)));
   list.querySelectorAll('.item').forEach(el => el.addEventListener('click', () => openItemEditor(el.dataset.itemId, el.dataset.dayId, el.dataset.slotKey)));
@@ -480,6 +476,11 @@ function openDayEditor(id) {
 function openItemEditor(itemId, dayId, slotKey) {
   const ex = itemId ? (currentTrip.days?.[dayId]?.slots?.[slotKey]?.[itemId] || {}) : {};
   const opts = Object.keys(TYPE_LABEL).map(k => `<option value="${k}" ${ex.type===k?'selected':''}>${TYPE_ICON[k]} ${TYPE_LABEL[k]}</option>`).join('');
+  const allDays = Object.entries(currentTrip?.days || {}).sort(([,a],[,b]) => (a.date||'').localeCompare(b.date||''));
+  const dayOpts = allDays.map(([id, d], i) =>
+    `<option value="${id}" ${id===dayId?'selected':''}>Day ${String(i+1).padStart(2,'0')} · ${fmtDate(d.date)||id}${d.city?' · '+escapeHtml(d.city):''}</option>`).join('');
+  const slotOpts = SLOTS.map(s => `<option value="${s.key}" ${s.key===slotKey?'selected':''}>${s.label}</option>`).join('');
+
   openModal(itemId ? '編輯項目' : '新增項目', `
     <div class="field"><label>類型</label><select id="m-type">${opts}</select></div>
     <div class="field"><label>名稱</label><input id="m-title" type="text" value="${escapeHtml(ex.title||'')}" placeholder="例：聖馬可大教堂" /></div>
@@ -489,14 +490,37 @@ function openItemEditor(itemId, dayId, slotKey) {
     </div>
     <div class="field"><label>地址</label><input id="m-address" type="text" value="${escapeHtml(ex.address||'')}" /></div>
     <div class="field"><label>備註</label><textarea id="m-note" placeholder="訂位、營業時間、推薦...">${escapeHtml(ex.note||'')}</textarea></div>
-    <div class="field"><label>連結</label><input id="m-url" type="url" value="${escapeHtml(ex.url||'')}" /></div>`,
+    <div class="field"><label>連結</label><input id="m-url" type="url" value="${escapeHtml(ex.url||'')}" /></div>
+    ${allDays.length ? `<div class="move-to-row">
+      <p class="move-to-label">📅 移到</p>
+      <div class="field-row">
+        <div class="field"><label>日期</label><select id="m-target-day">${dayOpts}</select></div>
+        <div class="field"><label>時間段</label><select id="m-target-slot">${slotOpts}</select></div>
+      </div>
+    </div>` : ''}`,
     () => {
       const data = { type:$('#m-type').value, title:$('#m-title').value.trim(), time:$('#m-time').value.trim(),
         budget:$('#m-budget').value.trim(), address:$('#m-address').value.trim(), note:$('#m-note').value.trim(),
         url:$('#m-url').value.trim(), order: ex.order ?? 999 };
       if (!data.title) { toast('請輸入名稱'); return; }
-      tripsRef.child(currentTripId).child('days').child(dayId).child('slots').child(slotKey).child(itemId || 'item-'+uid()).set(data);
-      closeModal(); toast(itemId ? '已更新' : '已新增');
+      const targetDayId  = $('#m-target-day')?.value  || dayId;
+      const targetSlot   = $('#m-target-slot')?.value || slotKey;
+      const moving = itemId && (targetDayId !== dayId || targetSlot !== slotKey);
+      if (moving) {
+        const existing = currentTrip.days?.[targetDayId]?.slots?.[targetSlot] || {};
+        data.order = Object.keys(existing).length;
+        const updates = {};
+        updates[`days/${dayId}/slots/${slotKey}/${itemId}`] = null;
+        updates[`days/${targetDayId}/slots/${targetSlot}/${itemId}`] = data;
+        tripsRef.child(currentTripId).update(updates);
+        const idx = allDays.findIndex(([id]) => id === targetDayId) + 1;
+        const slotLabel = SLOTS.find(s => s.key === targetSlot)?.label.split(' · ')[1] || targetSlot;
+        pendingScrollDayId = targetDayId;
+        closeModal(); toast(`✓ 已移到 Day ${String(idx).padStart(2,'0')} · ${slotLabel}`);
+      } else {
+        tripsRef.child(currentTripId).child('days').child(targetDayId).child('slots').child(targetSlot).child(itemId || 'item-'+uid()).set(data);
+        closeModal(); toast(itemId ? '已更新' : '已新增');
+      }
     },
     itemId ? () => { if (!confirm('刪除這個項目？')) return; tripsRef.child(currentTripId).child('days').child(dayId).child('slots').child(slotKey).child(itemId).remove(); closeModal(); toast('已刪除'); } : null);
 }
