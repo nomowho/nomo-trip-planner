@@ -445,9 +445,10 @@ function renderItem(dayId, slotKey, it) {
 function initSortable() {
   sortables.forEach(s => s.destroy()); sortables = [];
   $$('.slot-items').forEach(c => sortables.push(Sortable.create(c, {
-    group: 'items', animation: 150, ghostClass: 'ghost', dragClass: 'dragging',
-    delay: 80, delayOnTouchOnly: true, touchStartThreshold: 3, fallbackTolerance: 3,
-    onStart: () => { sortableDragging = true; },
+    group: 'items', animation: 200, ghostClass: 'ghost', dragClass: 'dragging', chosenClass: 'chosen',
+    delay: 150, delayOnTouchOnly: true, touchStartThreshold: 6, fallbackTolerance: 3,
+    scroll: true, scrollSensitivity: 120, scrollSpeed: 18, bubbleScroll: true,
+    onStart: () => { sortableDragging = true; if (navigator.vibrate) navigator.vibrate(12); },
     onEnd: (evt) => { sortableDragging = false; handleDragEnd(evt); }
   })));
 }

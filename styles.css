@@ -356,7 +356,8 @@ a { color: var(--accent); text-decoration: none; }
   transition: box-shadow .15s, transform .15s;
 }
 .item:hover { box-shadow: var(--shadow-sm); }
-.item.dragging { opacity: .4; }
+.item.chosen { box-shadow: var(--shadow-md); transform: scale(1.03); z-index: 5; }
+.item.dragging { opacity: .35; box-shadow: var(--shadow-md); }
 .item.ghost { background: rgba(200,52,26,.08); border-style: dashed; }
 .item-icon { float: left; margin-right: 8px; font-size: 18px; line-height: 1.2; }
 .item-title { font-weight: 600; font-size: 13px; margin: 0 0 2px; }
