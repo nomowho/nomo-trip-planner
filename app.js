@@ -65,6 +65,7 @@ let view = 'home';                 // 'home' | 'trip'
 let currentTab = 'itinerary';      // 'itinerary' | 'expenses'
 let sortables = [];
 let sortableDragging = false;
+let pendingScrollDayId = null;
 
 // ── 工具 ───────────────────────────────────
 const $ = (s, el = document) => el.querySelector(s);
@@ -376,18 +377,31 @@ function renderDays() {
       <article class="day-card" data-day-id="${id}">
         <header class="day-head">
           <div class="day-num"><span class="day-label">DAY</span><span class="day-n">${String(idx+1).padStart(2,'0')}</span></div>
-          <div class="day-info"><span class="day-date">${fmtDate(d.date)||'（未設定日期）'}</span><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
-          <div class="day-actions"><button data-day-edit="${id}">編輯日期</button><button class="del" data-day-del="${id}">刪除</button></div>
+          <div class="day-info"><input type="date" class="day-date-input" value="${d.date||''}" data-day-id="${id}" title="點擊更改日期" /><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
+          <div class="day-actions"><button class="del" data-day-del="${id}">刪除</button></div>
         </header>
         <div class="slots">${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}</div>
       </article>`;
   }).join('');
   list.querySelectorAll('[data-day-city]').forEach(el => el.addEventListener('blur', () =>
     tripsRef.child(currentTripId).child('days').child(el.dataset.dayCity).update({ city: el.textContent.trim() })));
-  list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', () => openDayEditor(b.dataset.dayEdit)));
+  list.querySelectorAll('.day-date-input').forEach(input => input.addEventListener('change', () => {
+    pendingScrollDayId = input.dataset.dayId;
+    tripsRef.child(currentTripId).child('days').child(input.dataset.dayId).update({ date: input.value });
+    toast('日期已更新');
+  }));
   list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', () => deleteDay(b.dataset.dayDel)));
   list.querySelectorAll('.slot-add').forEach(b => b.addEventListener('click', () => openItemEditor(null, b.dataset.dayId, b.dataset.slotKey)));
   list.querySelectorAll('.item').forEach(el => el.addEventListener('click', () => openItemEditor(el.dataset.itemId, el.dataset.dayId, el.dataset.slotKey)));
+  if (pendingScrollDayId) {
+    const el = list.querySelector(`.day-card[data-day-id="${pendingScrollDayId}"]`);
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      el.classList.add('day-card-highlight');
+      setTimeout(() => el.classList.remove('day-card-highlight'), 1600);
+    }
+    pendingScrollDayId = null;
+  }
   initSortable();
 }
 function renderSlot(dayId, slot, items) {
