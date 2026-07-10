@@ -224,8 +224,8 @@ function tripTotalTWD(trip) {
 }
 function renderHome() {
   const grid = $('#tripsGrid');
-  const ids = Object.keys(allTrips).sort((a, b) =>
-    (allTrips[b].meta?.startDate || '').localeCompare(allTrips[a].meta?.startDate || ''));
+  const sortKey = t => t.meta?.updatedAt || (t.meta?.startDate ? new Date(t.meta.startDate).getTime() : 0);
+  const ids = Object.keys(allTrips).sort((a, b) => sortKey(allTrips[b]) - sortKey(allTrips[a]));
   grid.innerHTML = ids.map(id => {
     const t = allTrips[id], m = t.meta || {};
     const dayCount = Object.keys(t.days || {}).length;
@@ -263,7 +263,8 @@ function createNewTrip() {
   const id = 'trip-' + uid();
   tripsRef.child(id).set({
     meta: { title: '新的旅行', citiesText: '城市路線', startDate: '', endDate: '',
-            coverPhoto: '', members: ['我'], homeCurrency: 'TWD', rates: { EUR: 34, JPY: 0.22, USD: 32 } },
+            coverPhoto: '', members: ['我'], homeCurrency: 'TWD', rates: { EUR: 34, JPY: 0.22, USD: 32 },
+            updatedAt: Date.now() },
     flights: {}, hotels: {}, days: {}, expenses: {}
   }).then(() => { toast('已建立新行程'); enterTrip(id); });
 }
@@ -278,7 +279,11 @@ function deleteTrip(id) {
 // ════════════════════════════════════════════
 function updateMeta(patch) {
   if (!currentTripId) return;
-  tripsRef.child(currentTripId).child('meta').update(patch);
+  tripsRef.child(currentTripId).child('meta').update({ ...patch, updatedAt: Date.now() });
+}
+function touchTrip() {
+  if (!currentTripId) return;
+  tripsRef.child(currentTripId).child('meta').child('updatedAt').set(Date.now());
 }
 function renderTrip() {
   if (!currentTrip) return;
@@ -448,6 +453,7 @@ async function handleDragEnd(evt) {
       updates[`days/${newDayId}/slots/${newSlotKey}/${id}/order`] = idx;
   });
   itemEl.dataset.dayId = newDayId; itemEl.dataset.slotKey = newSlotKey;
+  updates['meta/updatedAt'] = Date.now();
   await tripsRef.child(currentTripId).update(updates);
   toast('已搬移');
 }
@@ -460,18 +466,19 @@ function addDay() {
   let next = currentTrip?.meta?.startDate || '';
   if (dates.length) { const l = new Date(dates[dates.length-1]); l.setDate(l.getDate()+1); next = l.toISOString().slice(0,10); }
   tripsRef.child(currentTripId).child('days').child('day-'+uid()).set({ date: next, city: '', slots: {} });
+  touchTrip();
   toast('已新增一天');
 }
 function deleteDay(id) {
   if (!confirm('確定刪除這一天？')) return;
-  tripsRef.child(currentTripId).child('days').child(id).remove(); toast('已刪除');
+  tripsRef.child(currentTripId).child('days').child(id).remove(); touchTrip(); toast('已刪除');
 }
 function openDayEditor(id) {
   const d = currentTrip.days[id] || {};
   openModal('編輯日期', `
     <div class="field"><label>日期</label><input id="m-date" type="date" value="${d.date||''}" /></div>
     <div class="field"><label>城市</label><input id="m-city" type="text" value="${escapeHtml(d.city||'')}" placeholder="例：威尼斯" /></div>`,
-    () => { tripsRef.child(currentTripId).child('days').child(id).update({ date: $('#m-date').value, city: $('#m-city').value.trim() }); closeModal(); toast('已更新'); });
+    () => { tripsRef.child(currentTripId).child('days').child(id).update({ date: $('#m-date').value, city: $('#m-city').value.trim() }); touchTrip(); closeModal(); toast('已更新'); });
 }
 function openItemEditor(itemId, dayId, slotKey) {
   const ex = itemId ? (currentTrip.days?.[dayId]?.slots?.[slotKey]?.[itemId] || {}) : {};
@@ -512,6 +519,7 @@ function openItemEditor(itemId, dayId, slotKey) {
         const updates = {};
         updates[`days/${dayId}/slots/${slotKey}/${itemId}`] = null;
         updates[`days/${targetDayId}/slots/${targetSlot}/${itemId}`] = data;
+        updates['meta/updatedAt'] = Date.now();
         tripsRef.child(currentTripId).update(updates);
         const idx = allDays.findIndex(([id]) => id === targetDayId) + 1;
         const slotLabel = SLOTS.find(s => s.key === targetSlot)?.label.split(' · ')[1] || targetSlot;
@@ -519,10 +527,11 @@ function openItemEditor(itemId, dayId, slotKey) {
         closeModal(); toast(`✓ 已移到 Day ${String(idx).padStart(2,'0')} · ${slotLabel}`);
       } else {
         tripsRef.child(currentTripId).child('days').child(targetDayId).child('slots').child(targetSlot).child(itemId || 'item-'+uid()).set(data);
+        touchTrip();
         closeModal(); toast(itemId ? '已更新' : '已新增');
       }
     },
-    itemId ? () => { if (!confirm('刪除這個項目？')) return; tripsRef.child(currentTripId).child('days').child(dayId).child('slots').child(slotKey).child(itemId).remove(); closeModal(); toast('已刪除'); } : null);
+    itemId ? () => { if (!confirm('刪除這個項目？')) return; tripsRef.child(currentTripId).child('days').child(dayId).child('slots').child(slotKey).child(itemId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 }
 function openFlightEditor(flightId) {
   const f = flightId ? (currentTrip.flights?.[flightId] || {}) : { type: 'outbound' };
@@ -548,9 +557,10 @@ function openFlightEditor(flightId) {
         to:$('#m-to').value.trim(), toCode:$('#m-toCode').value.trim().toUpperCase(),
         depart:fromLocalInput($('#m-depart').value), arrive:fromLocalInput($('#m-arrive').value),
         cabin:$('#m-cabin').value.trim(), bookingRef:$('#m-bookingRef').value.trim() });
+      touchTrip();
       closeModal(); toast(flightId ? '已更新' : '已新增');
     },
-    flightId ? () => { if (!confirm('刪除這筆航班？')) return; tripsRef.child(currentTripId).child('flights').child(flightId).remove(); closeModal(); toast('已刪除'); } : null);
+    flightId ? () => { if (!confirm('刪除這筆航班？')) return; tripsRef.child(currentTripId).child('flights').child(flightId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 }
 function openHotelEditor(hotelId) {
   const h = hotelId ? (currentTrip.hotels?.[hotelId] || {}) : {};
@@ -568,9 +578,10 @@ function openHotelEditor(hotelId) {
       tripsRef.child(currentTripId).child('hotels').child(hotelId || 'htl-'+uid()).set({
         name:$('#m-name').value.trim(), city:$('#m-city').value.trim(), checkIn:ci, checkOut:co, nights:n,
         address:$('#m-address').value.trim(), note:$('#m-note').value.trim(), photo:$('#m-photo').value.trim() });
+      touchTrip();
       closeModal(); toast(hotelId ? '已更新' : '已新增');
     },
-    hotelId ? () => { if (!confirm('刪除這筆住宿？')) return; tripsRef.child(currentTripId).child('hotels').child(hotelId).remove(); closeModal(); toast('已刪除'); } : null);
+    hotelId ? () => { if (!confirm('刪除這筆住宿？')) return; tripsRef.child(currentTripId).child('hotels').child(hotelId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 }
 function openCarEditor(carId) {
   const c = carId ? (currentTrip.cars?.[carId] || {}) : {};
@@ -594,9 +605,10 @@ function openCarEditor(carId) {
         pickupLocation: $('#m-pickupLoc').value.trim(), returnLocation: $('#m-returnLoc').value.trim(),
         confirmNo: $('#m-confirmNo').value.trim(), note: $('#m-note').value.trim()
       });
+      touchTrip();
       closeModal(); toast(carId ? '已更新' : '已新增');
     },
-    carId ? () => { if (!confirm('刪除這筆租車？')) return; tripsRef.child(currentTripId).child('cars').child(carId).remove(); closeModal(); toast('已刪除'); } : null);
+    carId ? () => { if (!confirm('刪除這筆租車？')) return; tripsRef.child(currentTripId).child('cars').child(carId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 }
 
 function openCoverEditor() {
@@ -766,9 +778,10 @@ function openExpenseEditor(expId) {
         shared, splitWith, receiptThumb: pendingReceiptThumb || null,
         createdAt: e.createdAt || Date.now()
       });
+      touchTrip();
       closeModal(); toast(expId ? '已更新' : '已記帳');
     },
-    expId ? () => { if (!confirm('刪除這筆支出？')) return; tripsRef.child(currentTripId).child('expenses').child(expId).remove(); closeModal(); toast('已刪除'); } : null);
+    expId ? () => { if (!confirm('刪除這筆支出？')) return; tripsRef.child(currentTripId).child('expenses').child(expId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 
   // 綁定掃描 + 分攤顯示
   $('#scanBtn').addEventListener('click', () => $('#receiptInput').click());
@@ -987,6 +1000,7 @@ function openSpotAdder(spot) {
           url:     '',
           order:   order
         });
+      touchTrip();
       closeModal();
       const dayIdx = days.findIndex(([id]) => id === dayId) + 1;
       const slotLabel = SLOTS.find(s => s.key === slotKey)?.label || slotKey;
