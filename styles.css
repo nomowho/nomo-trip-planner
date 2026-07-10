@@ -681,6 +681,7 @@ a { color: var(--accent); text-decoration: none; }
   padding: 3px 8px; color: #fff;
 }
 .guide-tag-spot     { background: #2c3e50; }
+.guide-tag-museum   { background: #5c4a72; }
 .guide-tag-cafe     { background: #4a4a4a; }
 .guide-tag-restaurant { background: #6b4226; }
 .guide-tag-shopping { background: var(--accent); }

@@ -28,11 +28,11 @@ const SLOTS = [
   { key: 'night',     label: 'NIGHT · 夜間' }
 ];
 const TYPE_ICON = {
-  spot: '🏛️', restaurant: '🍽️', transit: '🚗', hotel: '🏨',
+  spot: '🏛️', museum: '🖼️', restaurant: '🍽️', transit: '🚗', hotel: '🏨',
   activity: '🎯', shopping: '🛍️', cafe: '☕', view: '🏔️'
 };
 const TYPE_LABEL = {
-  spot: '景點', restaurant: '餐廳', transit: '交通', hotel: '住宿',
+  spot: '景點', museum: '美術館', restaurant: '餐廳', transit: '交通', hotel: '住宿',
   activity: '活動', shopping: '購物', cafe: '咖啡', view: '風景'
 };
 
@@ -949,8 +949,8 @@ function exportTrip() {
 // ════════════════════════════════════════════
 //  首爾景點庫
 // ════════════════════════════════════════════
-const GUIDE_CAT_LABEL = { spot: '景點美術館', cafe: '咖啡廳', restaurant: '餐廳', shopping: '購物' };
-const GUIDE_TO_TYPE   = { spot: 'spot', cafe: 'cafe', restaurant: 'restaurant', shopping: 'shopping' };
+const GUIDE_CAT_LABEL = { spot: '景點', museum: '美術館', cafe: '咖啡廳', restaurant: '餐廳', shopping: '購物' };
+const GUIDE_TO_TYPE   = { spot: 'spot', museum: 'museum', cafe: 'cafe', restaurant: 'restaurant', shopping: 'shopping' };
 
 function renderGuide() {
   const activeFilter = $('.guide-filter.active')?.dataset.filter || 'all';

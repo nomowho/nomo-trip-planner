@@ -1,6 +1,6 @@
 /* ─────────────────────────────────────────────
    Seoul Guide 景點資料庫
-   cat: 'spot' | 'cafe' | 'restaurant' | 'shopping'
+   cat: 'spot' | 'museum' | 'cafe' | 'restaurant' | 'shopping'
    ───────────────────────────────────────────── */
 const GUIDE_SPOTS = [
 
@@ -45,7 +45,7 @@ const GUIDE_SPOTS = [
     img: 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Jeongneung%2C_view_from_the_Hongsalmun-_the_tomb_of_King_Jungjong%2C_at_the_Seonjeonneung_site.jpg',
     tip: '以王陵為前景、玻璃帷幕辦公大樓為背景拍攝' },
 
-  { id: 'craft-museum', cat: 'spot',
+  { id: 'craft-museum', cat: 'museum',
     name: '首爾工藝博物館', nameKo: '서울공예박물관',
     district: '鍾路 · 안국역',
     addr: '서울 종로구 율곡로3길 4',
@@ -53,7 +53,7 @@ const GUIDE_SPOTS = [
     img: 'https://thesoulofseoul.net/wp-content/uploads/2022/08/IMG_5122.jpg',
     tip: '上午10點前院落光影最美，人也最少' },
 
-  { id: 'leeum', cat: 'spot',
+  { id: 'leeum', cat: 'museum',
     name: 'Leeum Museum of Art', nameKo: '리움미술관 — 三星文化財團',
     district: '龍山 · 漢南洞',
     addr: '서울 용산구 이태원로55길 60-16',
@@ -61,7 +61,7 @@ const GUIDE_SPOTS = [
     img: 'https://dynamic-media-cdn.tripadvisor.com/media/photo-o/1a/17/4e/86/leeum-leeum-samsung-museum.jpg?w=1200&h=-1&s=1',
     tip: 'M1、M2、M3三棟建築各由不同大師設計，逐一比對' },
 
-  { id: 'apma', cat: 'spot',
+  { id: 'apma', cat: 'museum',
     name: 'APMA 아모레퍼시픽 美術館', nameKo: 'Amorepacific Museum of Art',
     district: '龍山 · 신용산역',
     addr: '서울 용산구 한강대로 100 (본사 내)',
@@ -69,7 +69,7 @@ const GUIDE_SPOTS = [
     img: 'https://www.apgroup.com/int/en/resource/images/misc/news/2021-02-23/content/image_2.jpg',
     tip: '結合本社大廳圖書館 + 咖啡廳一起逛一個完美下午' },
 
-  { id: 'light-museum', cat: 'spot',
+  { id: 'light-museum', cat: 'museum',
     name: '光影美學博物館', nameKo: '광영미학박물관 / 빛의시간',
     district: '首爾（展期地點不同）',
     addr: '最新展覽地點請查官網 / IG',
@@ -85,7 +85,7 @@ const GUIDE_SPOTS = [
     img: 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Dongdaemun_Design_Plaza_at_night%2C_Seoul%2C_Korea.jpg',
     tip: '入夜後LED燈光矩陣最美，旁邊東大門可夜逛' },
 
-  { id: 'mmca', cat: 'spot',
+  { id: 'mmca', cat: 'museum',
     name: 'MMCA 國立現代美術館', nameKo: '국립현대미술관 서울관',
     district: '鍾路 · 경복궁역',
     addr: '서울 종로구 삼청로 30',
@@ -101,7 +101,7 @@ const GUIDE_SPOTS = [
     img: 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Gwanghwamun_20240413.jpg',
     tip: '7–8月야간개장在官網提前搶票，燈光氛圍完全不同' },
 
-  { id: 'sema', cat: 'spot',
+  { id: 'sema', cat: 'museum',
     name: 'SeMA 首爾市立美術館', nameKo: '서울시립미술관 서소문본관',
     district: '中區 · 시청역',
     addr: '서울 중구 덕수궁길 61',
@@ -109,7 +109,7 @@ const GUIDE_SPOTS = [
     img: 'https://tong.visitkorea.or.kr/cms/resource/47/3061547_image2_1.png',
     tip: '外牆石柱 + 現代白色展廳，殖民建築再利用教科書' },
 
-  { id: 'ground-seesaw', cat: 'spot',
+  { id: 'ground-seesaw', cat: 'museum',
     name: 'Ground Seesaw Seochon', nameKo: '그라운드시소 서촌 — 西村藝廊',
     district: '鍾路 · 경복궁역',
     addr: '서울 종로구 자하문로7길 (서촌)',
