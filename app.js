@@ -66,6 +66,7 @@ let currentTab = 'itinerary';      // 'itinerary' | 'expenses'
 let sortables = [];
 let sortableDragging = false;
 let pendingScrollDayId = null;
+let collapsedDays = new Set();
 
 // ── 工具 ───────────────────────────────────
 const $ = (s, el = document) => el.querySelector(s);
@@ -149,6 +150,7 @@ function enterTrip(id) {
   currentTripId = id;
   currentTrip = allTrips[id];
   view = 'trip';
+  collapsedDays = new Set();
   localStorage.setItem('lastTripId', id);
   $('#home').hidden = true;
   $('#app').hidden = false;
@@ -378,18 +380,30 @@ function renderDays() {
   }
   list.innerHTML = ids.map((id, idx) => {
     const d = days[id];
+    const collapsed = collapsedDays.has(id);
     return `
       <article class="day-card" data-day-id="${id}">
         <header class="day-head">
           <div class="day-num"><span class="day-label">DAY</span><span class="day-n">${String(idx+1).padStart(2,'0')}</span></div>
           <div class="day-info"><span class="day-date">${fmtDate(d.date)||'（未設定日期）'}</span><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
-          <div class="day-actions"><button data-day-edit="${id}">編輯日期</button><button class="del" data-day-del="${id}">刪除</button></div>
+          <div class="day-actions">
+            <button class="day-toggle" data-day-toggle="${id}" title="展開／收起">${collapsed ? '▶' : '▼'}</button>
+            <button data-day-edit="${id}">編輯日期</button>
+            <button class="del" data-day-del="${id}">刪除</button>
+          </div>
         </header>
-        <div class="slots">${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}</div>
+        <div class="slots" ${collapsed ? 'hidden' : ''}>${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}</div>
       </article>`;
   }).join('');
   list.querySelectorAll('[data-day-city]').forEach(el => el.addEventListener('blur', () =>
     tripsRef.child(currentTripId).child('days').child(el.dataset.dayCity).update({ city: el.textContent.trim() })));
+  list.querySelectorAll('[data-day-toggle]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.dayToggle;
+    const slots = list.querySelector(`.day-card[data-day-id="${id}"] .slots`);
+    if (!slots) return;
+    if (slots.hidden) { slots.hidden = false; collapsedDays.delete(id); b.textContent = '▼'; }
+    else { slots.hidden = true; collapsedDays.add(id); b.textContent = '▶'; }
+  }));
   list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', () => openDayEditor(b.dataset.dayEdit)));
   list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', () => deleteDay(b.dataset.dayDel)));
   list.querySelectorAll('.slot-add').forEach(b => b.addEventListener('click', () => openItemEditor(null, b.dataset.dayId, b.dataset.slotKey)));
