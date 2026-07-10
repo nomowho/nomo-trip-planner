@@ -224,7 +224,7 @@ function tripTotalTWD(trip) {
 }
 function renderHome() {
   const grid = $('#tripsGrid');
-  const sortKey = t => t.meta?.updatedAt || (t.meta?.startDate ? new Date(t.meta.startDate).getTime() : 0);
+  const sortKey = t => t.meta?.updatedAt || 0;
   const ids = Object.keys(allTrips).sort((a, b) => sortKey(allTrips[b]) - sortKey(allTrips[a]));
   grid.innerHTML = ids.map(id => {
     const t = allTrips[id], m = t.meta || {};
