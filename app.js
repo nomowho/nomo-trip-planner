@@ -19,7 +19,6 @@ const db = firebase.database();
 const tripsRef = db.ref('trips');
 
 // ── 常數 ───────────────────────────────────
-const PIN = '0808';
 const SLOTS = [
   { key: 'morning',   label: 'MORNING · 早晨' },
   { key: 'noon',      label: 'NOON · 中午' },
@@ -55,7 +54,7 @@ const CAT_KEYWORDS = {
   shopping: ['boutique','store','shop','negozio','購','店'],
   grocery:  ['supermercato','market','coop','conad','esselunga','超市','超商','便利']
 };
-const COMMON_CURRENCIES = ['TWD','EUR','JPY','USD','GBP','CHF'];
+const COMMON_CURRENCIES = ['TWD','EUR','JPY','USD','GBP','CHF','KRW'];
 
 // ── 狀態 ───────────────────────────────────
 let allTrips = {};                 // 全部行程（即時快取）
@@ -95,26 +94,6 @@ function toast(msg, ms = 2000) {
   t.textContent = msg; t.hidden = false;
   clearTimeout(toast._t);
   toast._t = setTimeout(() => t.hidden = true, ms);
-}
-
-// ── PIN ─────────────────────────────────────
-function setupPin() {
-  if (sessionStorage.getItem('tripPinOk') === '1') return enterAfterPin();
-  const input = $('#pinInput'), btn = $('#pinBtn'), err = $('#pinErr');
-  const check = () => {
-    if (input.value === PIN) { sessionStorage.setItem('tripPinOk', '1'); enterAfterPin(); }
-    else { err.hidden = false; input.value = ''; input.focus(); }
-  };
-  btn.addEventListener('click', check);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') check(); });
-  setTimeout(() => input.focus(), 100);
-}
-function enterAfterPin() {
-  $('#pinGate').hidden = true;
-  showHome();
-  bootData();
-  bindGlobalEvents();
-  initSwipeBack();
 }
 
 // ── 資料監聽 ───────────────────────────────
@@ -170,8 +149,6 @@ function switchTab(tab) {
 
 // ── 全域事件 ───────────────────────────────
 function bindGlobalEvents() {
-  $('#lockBtn').addEventListener('click', lock);
-  $('#lockBtnHome').addEventListener('click', lock);
   $('#backBtn').addEventListener('click', showHome);
   $('#addDayBtn').addEventListener('click', addDay);
   $('#exportBtn').addEventListener('click', exportTrip);
@@ -213,8 +190,6 @@ function bindGlobalEvents() {
   $('#modalSave').addEventListener('click', () => modalSaveHandler && modalSaveHandler());
   $('#modalDelete').addEventListener('click', () => modalDeleteHandler && modalDeleteHandler());
 }
-function lock() { sessionStorage.removeItem('tripPinOk'); location.reload(); }
-
 // ════════════════════════════════════════════
 //  收納首頁
 // ════════════════════════════════════════════
@@ -861,6 +836,7 @@ function applyOcr(text) {
   // 幣別：偵測 €/EUR
   if (/€|eur/i.test(text)) { const c = $('#m-currency'); if (c && [...c.options].some(o=>o.value==='EUR')) c.value = 'EUR'; }
   else if (/¥|jpy|yen|円/i.test(text)) { const c = $('#m-currency'); if (c && [...c.options].some(o=>o.value==='JPY')) c.value = 'JPY'; }
+  else if (/₩|krw|원/i.test(text)) { const c = $('#m-currency'); if (c && [...c.options].some(o=>o.value==='KRW')) c.value = 'KRW'; }
   // 標題：取第一行非空文字
   const firstLine = (text.split('\n').map(l=>l.trim()).filter(l=>l.length>2)[0]||'').slice(0, 40);
   const tEl = $('#m-title'); if (tEl && !tEl.value && firstLine) tEl.value = firstLine;
@@ -1041,7 +1017,10 @@ function initSwipeBack() {
 }
 
 // ── 啟動 ───────────────────────────────────
-setupPin();
+showHome();
+bootData();
+bindGlobalEvents();
+initSwipeBack();
 window.addDay = addDay;
 window.__debugSetTrip = (data) => { allTrips = { __preview: data }; currentTripId = '__preview'; currentTrip = data; view='trip'; $('#home').hidden=true; $('#app').hidden=false; switchTab('itinerary'); renderTrip(); };
 window.__debugShowExpenses = () => { switchTab('expenses'); };
