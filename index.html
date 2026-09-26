@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css" />
+<link rel="stylesheet" href="styles.css?v=11" />
 </head>
 <body>
 
@@ -32,6 +32,7 @@
 
   <section class="home-grid-wrap">
     <div class="trips-grid" id="tripsGrid"></div>
+    <button class="trash-link" id="trashLink" hidden></button>
   </section>
 
   <footer class="footer">
@@ -51,9 +52,11 @@
     </div>
     <div class="nav-right">
       <span id="syncDot" class="sync-dot" title="連線中"></span>
-      <button class="ghost-btn" id="exportBtn">匯出</button>
+      <button class="ghost-btn edit-toggle" id="editModeBtn">✏️ 編輯</button>
+      <button class="ghost-btn edit-only" id="exportBtn">匯出</button>
     </div>
   </nav>
+  <div class="offline-bar" id="offlineBar" hidden>📴 離線中：顯示最後一次同步的資料，恢復連線後自動更新</div>
 
   <!-- ===== TAB：行程 ===== -->
   <div id="tab-itinerary" class="tab-panel">
@@ -62,12 +65,15 @@
       <div class="cover-img" id="coverImg"></div>
       <div class="cover-overlay">
         <p class="cover-eyebrow" id="coverEyebrow">A JOURNEY · 旅行誌</p>
-        <h1 class="cover-title" id="coverTitle" contenteditable spellcheck="false">點此編輯行程名稱</h1>
-        <p class="cover-cities" id="coverCities" contenteditable spellcheck="false">城市路線</p>
+        <h1 class="cover-title" id="coverTitle" spellcheck="false" data-placeholder="點此編輯行程名稱"></h1>
+        <p class="cover-cities" id="coverCities" spellcheck="false" data-placeholder="城市路線"></p>
         <p class="cover-dates" id="coverDates"></p>
       </div>
-      <button class="cover-edit-btn" id="coverEditBtn">編輯封面</button>
+      <button class="cover-edit-btn edit-only" id="coverEditBtn">編輯封面</button>
     </header>
+
+    <!-- 今日速覽 -->
+    <section class="today-card" id="todayCard" hidden></section>
 
     <!-- 航班 -->
     <section class="section">
@@ -131,8 +137,13 @@
         <h2>ITINERARY · 每日行程</h2>
         <button class="add-btn" id="addDayBtn">+ 新增一天</button>
       </div>
+      <nav class="day-nav" id="dayNav"></nav>
       <div class="days-list" id="daysList"></div>
     </section>
+
+    <div class="danger-zone edit-only">
+      <button class="ghost-btn danger" id="deleteTripBtn">刪除這趟行程</button>
+    </div>
   </div>
 
   <!-- ===== TAB：首爾景點庫 ===== -->
@@ -221,6 +232,6 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="guide-data.js?v=8"></script>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

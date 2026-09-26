@@ -790,6 +790,101 @@ a { color: var(--accent); text-decoration: none; }
 .split-chip { display: inline-flex; align-items: center; gap: 5px; background: #fff; border: 1px solid var(--rule); border-radius: 100px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
 .split-chip input { margin: 0; }
 
+/* ── 瀏覽模式（預設）：藏起編輯用的按鈕 ─────── */
+.view-mode #tab-itinerary .add-btn,
+.view-mode .slot-add,
+.view-mode .edit-only { display: none !important; }
+.view-mode .item, .view-mode .flight-card, .view-mode .hotel-card, .view-mode .car-card { cursor: default; }
+.view-mode .item:hover { box-shadow: none; }
+.view-mode .slot.is-empty { display: none; }
+.view-mode .cover-title:hover, .view-mode .cover-cities:hover, .view-mode .cover-dates:hover { border-bottom-color: transparent; }
+.view-mode .cover-title, .view-mode .cover-cities, .view-mode .cover-dates { cursor: default; }
+.edit-toggle.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.day-empty { margin: 0; padding: 18px 28px; font-size: 13px; color: var(--ink-soft); font-style: italic; }
+body:not(.view-mode) .day-empty { display: none; }
+
+/* 行內編輯的佔位字（只是提示，不會存進資料） */
+[data-placeholder]:empty::before { content: attr(data-placeholder); opacity: .45; }
+.view-mode [data-placeholder]:empty::before { content: ""; }
+
+/* 連結 */
+.note-link { word-break: break-all; font-style: normal; }
+
+/* 離線提示 */
+.offline-bar {
+  position: sticky; top: 56px; z-index: 45;
+  background: #3a3530; color: #fff; font-size: 12px; text-align: center; padding: 6px 16px;
+}
+
+/* 首頁：最近刪除 */
+.trash-link {
+  margin-top: 20px; background: none; border: none; color: var(--ink-soft);
+  font-family: var(--sans); font-size: 13px; cursor: pointer; padding: 6px 0;
+}
+.trash-link:hover { color: var(--accent); }
+.trash-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rule); }
+.trash-row small { display: block; color: var(--ink-soft); font-size: 12px; }
+.danger-zone { padding: 8px 24px 32px; max-width: 1440px; margin: 0 auto; text-align: right; }
+
+/* ── 日期跳轉列 ─────────────────────────────── */
+.day-nav {
+  position: sticky; top: 56px; z-index: 40;
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  padding: 10px 0; margin-bottom: 12px;
+  background: rgba(245,241,234,.94); backdrop-filter: blur(10px);
+}
+.day-nav::-webkit-scrollbar { display: none; }
+.day-chip {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; line-height: 1.15;
+  min-width: 52px; padding: 6px 10px; border: 1px solid var(--rule); border-radius: var(--r-md);
+  background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.day-chip small { font-size: 9px; letter-spacing: 1px; color: var(--ink-soft); font-weight: 500; }
+.day-chip:hover { border-color: var(--ink-soft); }
+.day-chip.today { background: var(--accent); border-color: var(--accent); color: #fff; justify-content: center; }
+.day-chip.is-today { border-color: var(--accent); color: var(--accent); }
+.day-card { scroll-margin-top: 124px; }
+.day-card.is-today { border-color: var(--accent); }
+.today-badge { background: var(--accent); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 3px; margin-left: 6px; font-weight: 600; }
+
+/* 收合時的每日摘要 */
+.day-summary { display: none; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.day-card.is-collapsed .day-summary { display: block; }
+.day-card.is-collapsed .day-head { border-bottom: none; }
+
+/* ── 今日速覽 ──────────────────────────────── */
+.today-card {
+  max-width: calc(1440px - 64px); margin: 24px max(32px, calc((100% - 1440px) / 2 + 32px)) 0; padding: 18px 24px;
+  background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--accent);
+  border-radius: var(--r-md); box-shadow: var(--shadow-sm);
+}
+.today-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.today-eyebrow { font-size: 11px; letter-spacing: 2px; color: var(--accent); font-weight: 700; text-transform: uppercase; }
+.today-date { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+.today-rows { display: flex; flex-direction: column; gap: 8px; }
+.today-row { display: grid; grid-template-columns: 110px 1fr; gap: 10px; font-size: 14px; }
+.today-row span { color: var(--ink-soft); font-size: 13px; }
+.today-row b { font-weight: 600; }
+.today-row a { font-weight: 600; white-space: nowrap; }
+.today-jump {
+  margin-top: 14px; background: none; border: 1px solid var(--rule); border-radius: var(--r-md);
+  padding: 8px 14px; font-family: var(--sans); font-size: 13px; cursor: pointer; color: var(--ink);
+}
+.today-jump:hover { border-color: var(--ink-soft); }
+#tab-itinerary .today-card + .section { margin-top: 28px; }
+
+@media (max-width: 600px) {
+  .today-card { margin: 16px 16px 0; padding: 16px; }
+  .today-row { grid-template-columns: 92px 1fr; font-size: 13px; }
+  .offline-bar, .day-nav { top: 52px; }
+  .day-card { scroll-margin-top: 116px; }
+  .danger-zone { padding: 8px 16px 32px; }
+  .nav-right .ghost-btn { padding: 6px 10px; font-size: 12px; }
+  #app .topnav { gap: 6px; padding-left: 12px; padding-right: 12px; }
+  #app .tab { padding: 8px 9px; }
+  .view-mode .item::after { display: none; }
+}
+
 /* 記帳響應式 */
 @media (max-width: 600px) {
   .home-hero { padding: 32px 16px 4px; }

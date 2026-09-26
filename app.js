@@ -65,15 +65,23 @@ let currentTab = 'itinerary';      // 'itinerary' | 'expenses'
 let sortables = [];
 let sortableDragging = false;
 let pendingScrollDayId = null;
+let editMode = false;                      // 預設瀏覽模式，避免旅伴誤觸；每台裝置各自記住（啟動時讀 localStorage）
+let renderPending = false;                 // 有人正在行內編輯時，遠端更新先暫緩重畫
+let booted = false;                        // 第一次拿到資料後才依網址導向
+const renderSig = {};                      // 各區塊上次畫面的資料指紋，沒變就不重畫
 
 // ── 工具 ───────────────────────────────────
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 const uid = () => Math.random().toString(36).slice(2, 10);
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// "YYYY-MM-DD" 一律當本地日期解析（new Date('2026-10-22') 會被當 UTC，在負時區差一天）
+const parseDate = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso || '') ? new Date(iso + 'T00:00') : new Date(iso);
+const isoLocal = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayLocal = () => isoLocal(new Date());
 const fmtDate = (iso) => {
   if (!iso) return '';
-  const d = new Date(iso);
+  const d = parseDate(iso);
   if (isNaN(d)) return iso;
   const wk = ['日','一','二','三','四','五','六'][d.getDay()];
   return `${d.getMonth()+1}/${d.getDate()} (週${wk})`;
@@ -81,9 +89,27 @@ const fmtDate = (iso) => {
 const dateRange = (s, e) => {
   if (!s || !e) return '';
   const fmt = d => `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
-  return `${fmt(new Date(s))} — ${fmt(new Date(e))}`;
+  return `${fmt(parseDate(s))} — ${fmt(parseDate(e))}`;
 };
 const ntd = (n) => 'NT$' + Math.round(n).toLocaleString('en-US');
+// 地址 → 地圖查詢：含座標就只用座標，否則去掉「導航：」「停車點：」這類前綴
+const mapQuery = (addr) => {
+  const s = String(addr || '');
+  const c = s.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+  return c ? `${c[1]},${c[2]}` : s.replace(/^[^：:,，]{1,6}[：:]\s*/, '');
+};
+const mapUrl = (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery(addr))}`;
+// 文字裡的網址變成可點連結（先 escape 再轉）
+const linkify = (s) => escapeHtml(s).replace(/https?:\/\/[^\s<>"'（）()]+/g, u => `<a href="${u}" target="_blank" rel="noopener" class="note-link">${u}</a>`);
+const linkLabel = (u) => {
+  if (/maps\.app\.goo\.gl|google\.[a-z.]+\/maps|maps\.google/.test(u)) return '🗺️ 地圖';
+  try { return '🔗 ' + new URL(u).hostname.replace(/^www\./, ''); } catch { return '🔗 連結'; }
+};
+// localStorage 可能被封鎖（無痕、清除資料），一律包 try
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+// 點到卡片裡的連結時，不要觸發卡片本身的點擊（開編輯視窗）
+const isLinkClick = (e) => !!e.target.closest('a');
 // datetime-local input 用 "YYYY-MM-DDTHH:mm"，我們存成空格分隔較好讀
 const toLocalInput  = (s) => (s || '').replace(' ', 'T').slice(0, 16);
 const fromLocalInput = (s) => (s || '').replace('T', ' ');
@@ -97,43 +123,80 @@ function toast(msg, ms = 2000) {
 
 // ── 資料監聽 ───────────────────────────────
 function bootData() {
+  // 先用本機快取畫出來：山區沒訊號、重新整理時也看得到行程
+  const cached = lsGet('tripsCache');
+  if (cached) { try { applyTrips(JSON.parse(cached)); } catch {} }
   tripsRef.on('value', snap => {
-    allTrips = snap.val() || {};
-    setSync('on', '#syncDot'); setSync('on', '#syncDotHome');
-    if (view === 'home') renderHome();
-    if (view === 'trip') {
-      currentTrip = allTrips[currentTripId] || null;
-      if (!currentTrip) { showHome(); return; }
-      renderTrip();
-    }
-  }, () => { setSync('off', '#syncDot'); setSync('off', '#syncDotHome'); });
+    const data = snap.val() || {};
+    lsSet('tripsCache', JSON.stringify(data));
+    applyTrips(data);
+  }, () => setSyncAll(false));
+  db.ref('.info/connected').on('value', s => setSyncAll(!!s.val()));
 }
-function setSync(state, sel) {
-  const d = $(sel); if (!d) return;
-  d.classList.remove('on', 'off');
-  if (state === 'on') { d.classList.add('on'); d.title = '已同步'; }
-  if (state === 'off') { d.classList.add('off'); d.title = '連線失敗'; }
+function applyTrips(data) {
+  allTrips = data;
+  if (!booted) { booted = true; route(); return; }
+  if (view === 'home') renderHome();
+  if (view === 'trip') {
+    currentTrip = allTrips[currentTripId] || null;
+    if (!currentTrip || currentTrip.meta?.deletedAt) { showHome(); return; }
+    if (isEditingInline() || sortableDragging) { renderPending = true; return; }
+    renderPending = false;
+    renderTrip();
+  }
+}
+function isEditingInline() {
+  const a = document.activeElement;
+  return !!(a && a.isContentEditable && $('#app').contains(a));
+}
+function setSyncAll(online) {
+  ['#syncDot', '#syncDotHome'].forEach(sel => {
+    const d = $(sel); if (!d) return;
+    d.classList.toggle('on', online); d.classList.toggle('off', !online);
+    d.title = online ? '已同步' : '離線中，顯示最後同步的資料';
+  });
+  // 剛開啟時連線要一兩秒，斷線超過 3 秒才顯示離線提示，避免閃一下
+  clearTimeout(setSyncAll._t);
+  if (online) $('#offlineBar').hidden = true;
+  else setSyncAll._t = setTimeout(() => { $('#offlineBar').hidden = false; }, 3000);
 }
 
 // ── 導航：首頁 / 行程內頁 ───────────────────
-function showHome() {
+// 網址帶行程 id（#trip-xxx），傳到群組點開就直接進行程；手機返回鍵回首頁
+function route() {
+  if (!$('#modal').hidden) closeModal();   // 按返回鍵時先關掉開著的視窗，避免蓋在首頁上
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (id && allTrips[id] && !allTrips[id].meta?.deletedAt) enterTrip(id, { push: false });
+  else showHome({ push: false });
+}
+function showHome({ push = true } = {}) {
   view = 'home';
+  if (push && location.hash) history.pushState(null, '', location.pathname + location.search);
   $('#app').hidden = true;
   $('#home').hidden = false;
   window.scrollTo(0, 0);
   renderHome();
 }
-function enterTrip(id) {
+// 從首頁點進來的就用 history.back()，返回鍵與「← 我的旅程」行為一致
+function goHome() {
+  if (history.state?.fromHome) history.back();
+  else showHome();
+}
+function enterTrip(id, { push = true } = {}) {
   if (!allTrips[id]) return;
+  if (push && location.hash !== '#' + id) history.pushState({ fromHome: view === 'home' }, '', '#' + id);
   currentTripId = id;
   currentTrip = allTrips[id];
   view = 'trip';
-  localStorage.setItem('lastTripId', id);
+  lsSet('lastTripId', id);
   $('#home').hidden = true;
   $('#app').hidden = false;
   switchTab('itinerary');
   window.scrollTo(0, 0);
-  renderTrip();
+  // 旅途中打開，直接捲到今天
+  const today = Object.entries(currentTrip.days || {}).find(([, d]) => d.date === todayLocal());
+  if (today) pendingScrollDayId = today[0];
+  renderTrip(true);
 }
 function switchTab(tab) {
   currentTab = tab;
@@ -147,13 +210,37 @@ function switchTab(tab) {
 
 // ── 全域事件 ───────────────────────────────
 function bindGlobalEvents() {
-  $('#backBtn').addEventListener('click', showHome);
+  $('#backBtn').addEventListener('click', goHome);
+  window.addEventListener('popstate', route);
+  $('#editModeBtn').addEventListener('click', () => { editMode = !editMode; lsSet('editMode', editMode ? '1' : '0'); applyEditMode(); toast(editMode ? '✏️ 編輯模式：可新增、修改、拖曳' : '👀 瀏覽模式'); });
+  $('#deleteTripBtn').addEventListener('click', () => deleteTrip(currentTripId));
+  $('#trashLink').addEventListener('click', openTrash);
+  $('#dayNav').addEventListener('click', e => {
+    const b = e.target.closest('[data-jump]'); if (!b) return;
+    const el = $(`.day-card[data-day-id="${b.dataset.jump}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('#todayCard').addEventListener('click', e => {
+    const b = e.target.closest('[data-jump]'); if (!b) return;
+    $(`.day-card[data-day-id="${b.dataset.jump}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  // 行內編輯結束後，補畫期間被暫緩的遠端更新
+  document.addEventListener('focusout', () => setTimeout(() => {
+    if (renderPending && !isEditingInline() && view === 'trip') { renderPending = false; renderTrip(); }
+  }, 0));
   $('#addDayBtn').addEventListener('click', addDay);
   $('#exportBtn').addEventListener('click', exportTrip);
   $('#coverEditBtn').addEventListener('click', openCoverEditor);
-  $('#coverTitle').addEventListener('blur', e => updateMeta({ title: e.target.textContent.trim() }));
-  $('#coverCities').addEventListener('blur', e => updateMeta({ citiesText: e.target.textContent.trim() }));
-  $('#coverDates').addEventListener('click', openCoverEditor);
+  // 只有內容真的改了才寫回；清空時不會把佔位字存進去
+  $('#coverTitle').addEventListener('blur', e => {
+    const v = e.target.textContent.trim(); if (!v) e.target.innerHTML = '';
+    if (v !== (currentTrip?.meta?.title || '')) updateMeta({ title: v });
+  });
+  $('#coverCities').addEventListener('blur', e => {
+    const v = e.target.textContent.trim(); if (!v) e.target.innerHTML = '';
+    if (v !== (currentTrip?.meta?.citiesText || '')) updateMeta({ citiesText: v });
+  });
+  $('#coverDates').addEventListener('click', () => { if (editMode) openCoverEditor(); });
   $$('.tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
   $$('[data-add]').forEach(b => b.addEventListener('click', () => {
     if (b.dataset.add === 'flight') openFlightEditor();
@@ -161,13 +248,16 @@ function bindGlobalEvents() {
     if (b.dataset.add === 'car') openCarEditor();
     if (b.dataset.add === 'train') openTrainEditor();
   }));
-  // 區段縮合切換
+  // 區段縮合切換：預設展開（旅伴最常查航班、住宿），每台裝置記住自己的選擇
   $$('.section-toggle').forEach(btn => {
+    const target = document.getElementById(btn.dataset.target);
+    if (!target) return;
+    const setOpen = (open) => { target.hidden = !open; btn.textContent = open ? '▼' : '▶'; };
+    setOpen(lsGet('sec:' + btn.dataset.target) !== '0');
     btn.addEventListener('click', () => {
-      const target = document.getElementById(btn.dataset.target);
-      if (!target) return;
-      target.hidden = !target.hidden;
-      btn.textContent = target.hidden ? '▶' : '▼';
+      const open = target.hidden;
+      setOpen(open);
+      lsSet('sec:' + btn.dataset.target, open ? '1' : '0');
     });
   });
   // 景點庫篩選
@@ -201,7 +291,11 @@ function tripTotalTWD(trip) {
 function renderHome() {
   const grid = $('#tripsGrid');
   const sortKey = t => t.meta?.updatedAt || 0;
-  const ids = Object.keys(allTrips).sort((a, b) => sortKey(allTrips[b]) - sortKey(allTrips[a]));
+  const ids = Object.keys(allTrips).filter(id => !allTrips[id].meta?.deletedAt)
+    .sort((a, b) => sortKey(allTrips[b]) - sortKey(allTrips[a]));
+  const trashed = Object.keys(allTrips).filter(id => allTrips[id].meta?.deletedAt);
+  $('#trashLink').hidden = !trashed.length;
+  $('#trashLink').textContent = `🗑 最近刪除（${trashed.length}）`;
   grid.innerHTML = ids.map(id => {
     const t = allTrips[id], m = t.meta || {};
     const dayCount = Object.keys(t.days || {}).length;
@@ -219,7 +313,6 @@ function renderHome() {
             ${total > 0 ? `<span>${ntd(total)}</span>` : ''}
           </div>
         </div>
-        <button class="trip-card-del" data-trip-del="${id}" title="刪除這趟行程" aria-label="刪除行程"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button>
       </article>`;
   }).join('') + `
     <button class="new-trip-card" id="newTripCard">
@@ -229,8 +322,6 @@ function renderHome() {
     </button>`;
   grid.querySelectorAll('.trip-card').forEach(c =>
     c.addEventListener('click', () => enterTrip(c.dataset.trip)));
-  grid.querySelectorAll('[data-trip-del]').forEach(b =>
-    b.addEventListener('click', (e) => { e.stopPropagation(); deleteTrip(b.dataset.tripDel); }));
   grid.querySelector('#newTripCard')?.addEventListener('click', createNewTrip);
   grid.querySelector('#loadSampleInline')?.addEventListener('click', (e) => { e.stopPropagation(); loadSampleTrip(); });
 }
@@ -242,12 +333,33 @@ function createNewTrip() {
             coverPhoto: '', members: ['我'], homeCurrency: 'TWD', rates: { EUR: 34, JPY: 0.22, USD: 32 },
             updatedAt: Date.now() },
     flights: {}, hotels: {}, days: {}, expenses: {}
-  }).then(() => { toast('已建立新行程'); enterTrip(id); });
+  }).then(() => {
+    // 新行程一定是要開始填資料，直接進編輯模式
+    editMode = true; lsSet('editMode', '1');
+    toast('已建立新行程'); enterTrip(id);
+  });
 }
+// 刪除保護：要輸入完整行程名稱，而且只是移到「最近刪除」，隨時可還原
 function deleteTrip(id) {
   const title = allTrips[id]?.meta?.title || '此行程';
-  if (!confirm(`確定刪除「${title}」？所有行程與記帳都會消失，無法復原。`)) return;
-  tripsRef.child(id).remove().then(() => toast('已刪除行程'));
+  const typed = prompt(`要刪除這趟行程，請輸入完整名稱確認：\n${title}\n\n（會移到首頁「最近刪除」，可以還原）`);
+  if (typed === null) return;
+  if (typed.trim() !== title) { toast('名稱不符，沒有刪除'); return; }
+  tripsRef.child(id).child('meta').child('deletedAt').set(Date.now()).then(() => { toast('已移到最近刪除'); showHome(); });
+}
+function openTrash() {
+  const ids = Object.keys(allTrips).filter(id => allTrips[id].meta?.deletedAt);
+  openModal('最近刪除', ids.map(id => {
+    const m = allTrips[id].meta;
+    return `<div class="trash-row"><div><strong>${escapeHtml(m.title || '未命名行程')}</strong>
+      <small>刪除於 ${new Date(m.deletedAt).toLocaleString('zh-TW')}</small></div>
+      <button class="ghost-btn" data-restore="${id}">還原</button></div>`;
+  }).join('') || '<p>沒有已刪除的行程</p>', null);
+  $('#modalSave').hidden = true;
+  $$('[data-restore]').forEach(b => b.addEventListener('click', () => {
+    tripsRef.child(b.dataset.restore).child('meta').child('deletedAt').remove();
+    closeModal(); toast('已還原');
+  }));
 }
 
 // ════════════════════════════════════════════
@@ -261,15 +373,37 @@ function touchTrip() {
   if (!currentTripId) return;
   tripsRef.child(currentTripId).child('meta').child('updatedAt').set(Date.now());
 }
-function renderTrip() {
+// 只重畫資料有變的區塊：別人改一筆，不會整頁重建、拖曳重新初始化
+function changed(key, ...parts) {
+  const sig = JSON.stringify(parts);
+  if (renderSig[key] === sig) return false;
+  renderSig[key] = sig; return true;
+}
+function renderTrip(force = false) {
   if (!currentTrip) return;
-  renderCover(); renderFlights(); renderHotels(); renderCars(); renderTrains(); renderDays();
+  if (force) Object.keys(renderSig).forEach(k => delete renderSig[k]);
+  const t = currentTrip;
+  if (changed('cover', t.meta)) renderCover();
+  if (changed('flights', t.flights)) renderFlights();
+  if (changed('hotels', t.hotels)) renderHotels();
+  if (changed('cars', t.cars)) renderCars();
+  if (changed('trains', t.trains)) renderTrains();
+  if (changed('days', t.days, t.hotels, t.flights, t.trains, todayLocal())) { renderDays(); renderDayNav(); renderTodayCard(); }
   if (currentTab === 'expenses') renderExpenses();
+  applyEditMode();
+}
+// 瀏覽模式：隱藏新增／編輯按鈕、關閉拖曳與行內編輯，旅伴可以放心點
+function applyEditMode() {
+  document.body.classList.toggle('view-mode', !editMode);
+  $('#editModeBtn').textContent = editMode ? '✓ 完成' : '✏️ 編輯';
+  $('#editModeBtn').classList.toggle('active', editMode);
+  $$('#coverTitle, #coverCities, [data-day-city]').forEach(el => el.contentEditable = editMode ? 'true' : 'false');
+  sortables.forEach(s => s.option('disabled', !editMode));
 }
 function renderCover() {
   const m = currentTrip.meta || {};
-  $('#coverTitle').textContent = m.title || '點此編輯行程名稱';
-  $('#coverCities').textContent = m.citiesText || '城市路線';
+  $('#coverTitle').textContent = m.title || '';
+  $('#coverCities').textContent = m.citiesText || '';
   $('#coverDates').textContent = dateRange(m.startDate, m.endDate) || '＋ 設定日期';
   $('#coverImg').style.backgroundImage = m.coverPhoto ? `url("${m.coverPhoto}")` : '';
   // 首爾景點庫只在韓國行程出現
@@ -298,7 +432,7 @@ function renderFlights() {
         ${f.bookingRef ? `<span>訂位 <strong>${escapeHtml(f.bookingRef)}</strong></span>` : ''}
       </div>
     </article>`).join('');
-  grid.querySelectorAll('.flight-card').forEach(c => c.addEventListener('click', () => openFlightEditor(c.dataset.flightId)));
+  grid.querySelectorAll('.flight-card').forEach(c => c.addEventListener('click', e => { if (editMode && !isLinkClick(e)) openFlightEditor(c.dataset.flightId); }));
 }
 
 // ── 住宿 ───────────────────────────────────
@@ -314,11 +448,11 @@ function renderHotels() {
         <div class="hotel-city">${escapeHtml(h.city||'')}</div>
         <h3 class="hotel-name">${escapeHtml(h.name||'未命名住宿')}</h3>
         <p class="hotel-dates">${escapeHtml(h.checkIn||'')} → ${escapeHtml(h.checkOut||'')} ${h.nights?'· '+h.nights+' 晚':''}</p>
-        <p class="hotel-addr">${h.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(h.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(h.address)}</a>` : ''}</p>
-        ${h.note ? `<p class="hotel-note">${escapeHtml(h.note)}</p>` : ''}
+        <p class="hotel-addr">${h.address ? `<a href="${mapUrl(h.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(h.address)}</a>` : ''}</p>
+        ${h.note ? `<p class="hotel-note">${linkify(h.note)}</p>` : ''}
       </div>
     </article>`).join('');
-  grid.querySelectorAll('.hotel-card').forEach(c => c.addEventListener('click', () => openHotelEditor(c.dataset.hotelId)));
+  grid.querySelectorAll('.hotel-card').forEach(c => c.addEventListener('click', e => { if (editMode && !isLinkClick(e)) openHotelEditor(c.dataset.hotelId); }));
 }
 function emptyHint(txt) {
   return `<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--ink-soft);font-size:13px;border:1px dashed var(--rule);border-radius:8px;">${txt}</div>`;
@@ -341,10 +475,10 @@ function renderCars() {
         ${c.pickupLocation ? `<div class="car-location">🔑 取車：${escapeHtml(c.pickupLocation)}</div>` : ''}
         ${c.returnLocation ? `<div class="car-location">📥 還車：${escapeHtml(c.returnLocation)}</div>` : ''}
         ${c.confirmNo ? `<div class="car-ref">確認碼 <strong>${escapeHtml(c.confirmNo)}</strong></div>` : ''}
-        ${c.note ? `<div class="car-note">${escapeHtml(c.note)}</div>` : ''}
+        ${c.note ? `<div class="car-note">${linkify(c.note)}</div>` : ''}
       </div>
     </article>`).join('');
-  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', () => openCarEditor(c.dataset.carId)));
+  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', e => { if (editMode && !isLinkClick(e)) openCarEditor(c.dataset.carId); }));
 }
 
 // ── 火車 ───────────────────────────────────
@@ -363,10 +497,10 @@ function renderTrains() {
         <div class="car-dates">📅 ${escapeHtml(t.date || '')} ${escapeHtml(t.departTime || '')}${t.arriveTime ? ' → ' + escapeHtml(t.arriveTime) : ''}</div>
         ${t.seat ? `<div class="car-location">💺 ${escapeHtml(t.seat)}</div>` : ''}
         ${t.bookingRef ? `<div class="car-ref">訂位代號 <strong>${escapeHtml(t.bookingRef)}</strong></div>` : ''}
-        ${t.note ? `<div class="car-note">${escapeHtml(t.note)}</div>` : ''}
+        ${t.note ? `<div class="car-note">${linkify(t.note)}</div>` : ''}
       </div>
     </article>`).join('');
-  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', () => openTrainEditor(c.dataset.trainId)));
+  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', e => { if (editMode && !isLinkClick(e)) openTrainEditor(c.dataset.trainId); }));
 }
 
 // ── 每日行程 ───────────────────────────────
@@ -378,30 +512,42 @@ function renderDays() {
     list.innerHTML = `<div style="text-align:center;padding:48px;color:var(--ink-soft);border:1px dashed var(--rule);border-radius:8px;"><p>尚無行程日</p><button class="primary-btn" onclick="addDay()">建立第一天</button></div>`;
     return;
   }
+  const today = todayLocal();
   list.innerHTML = ids.map((id, idx) => {
     const d = days[id];
     const collapsed = !!d.collapsed;
+    const count = dayItems(d).filter(it => it.type !== 'hotel').length;
+    const stay = hotelFor(d.date);
+    const moves = transportOn(d.date);
+    const summary = [count ? `${count} 個行程` : (moves.length ? '' : '尚無行程'),
+      ...moves.map(m => `${m.label} ${m.time}`), stay ? `🏨 ${stay.name}` : ''].filter(Boolean).join('　·　');
     return `
-      <article class="day-card" data-day-id="${id}">
+      <article class="day-card ${collapsed ? 'is-collapsed' : ''} ${d.date === today ? 'is-today' : ''}" data-day-id="${id}">
         <header class="day-head">
           <div class="day-num"><span class="day-label">DAY</span><span class="day-n">${String(idx+1).padStart(2,'0')}</span></div>
-          <div class="day-info"><span class="day-date">${fmtDate(d.date)||'（未設定日期）'}</span><span class="day-city" contenteditable spellcheck="false" data-day-city="${id}">${escapeHtml(d.city||'城市')}</span></div>
+          <div class="day-info"><span class="day-date">${fmtDate(d.date)||'（未設定日期）'}${d.date === today ? ' <b class="today-badge">今天</b>' : ''}</span><span class="day-city" spellcheck="false" data-placeholder="城市" data-day-city="${id}">${escapeHtml(d.city||'')}</span><span class="day-summary">${escapeHtml(summary)}</span></div>
           <div class="day-actions">
             <button class="day-toggle" data-day-toggle="${id}" title="展開／收起">${collapsed ? '▶' : '▼'}</button>
-            <button data-day-edit="${id}">編輯日期</button>
-            <button class="del" data-day-del="${id}">刪除</button>
+            <button class="edit-only" data-day-edit="${id}">編輯日期</button>
+            <button class="del edit-only" data-day-del="${id}">刪除</button>
           </div>
         </header>
-        <div class="slots" ${collapsed ? 'hidden' : ''}>${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}</div>
+        <div class="slots" ${collapsed ? 'hidden' : ''}>${SLOTS.map(s => renderSlot(id, s, d.slots?.[s.key] || {})).join('')}
+          ${count || stay ? '' : '<p class="day-empty">這天還沒有安排</p>'}</div>
       </article>`;
   }).join('');
-  list.querySelectorAll('[data-day-city]').forEach(el => el.addEventListener('blur', () =>
-    tripsRef.child(currentTripId).child('days').child(el.dataset.dayCity).update({ city: el.textContent.trim() })));
+  list.querySelectorAll('[data-day-city]').forEach(el => el.addEventListener('blur', () => {
+    const v = el.textContent.trim(); if (!v) el.innerHTML = '';
+    if (v !== (currentTrip.days?.[el.dataset.dayCity]?.city || ''))
+      tripsRef.child(currentTripId).child('days').child(el.dataset.dayCity).update({ city: v });
+  }));
   list.querySelectorAll('[data-day-toggle]').forEach(b => b.addEventListener('click', () => {
     const id = b.dataset.dayToggle;
-    const slots = list.querySelector(`.day-card[data-day-id="${id}"] .slots`);
+    const card = list.querySelector(`.day-card[data-day-id="${id}"]`);
+    const slots = card?.querySelector('.slots');
     if (!slots) return;
     slots.hidden = !slots.hidden;
+    card.classList.toggle('is-collapsed', slots.hidden);
     b.textContent = slots.hidden ? '▶' : '▼';
     // 收合狀態存進資料庫，跨裝置固定
     tripsRef.child(currentTripId).child('days').child(id).child('collapsed').set(slots.hidden || null);
@@ -409,7 +555,9 @@ function renderDays() {
   list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', () => openDayEditor(b.dataset.dayEdit)));
   list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', () => deleteDay(b.dataset.dayDel)));
   list.querySelectorAll('.slot-add').forEach(b => b.addEventListener('click', () => openItemEditor(null, b.dataset.dayId, b.dataset.slotKey)));
-  list.querySelectorAll('.item').forEach(el => el.addEventListener('click', () => openItemEditor(el.dataset.itemId, el.dataset.dayId, el.dataset.slotKey)));
+  list.querySelectorAll('.item').forEach(el => el.addEventListener('click', e => {
+    if (editMode && !isLinkClick(e)) openItemEditor(el.dataset.itemId, el.dataset.dayId, el.dataset.slotKey);
+  }));
   if (pendingScrollDayId) {
     const el = list.querySelector(`.day-card[data-day-id="${pendingScrollDayId}"]`);
     if (el) {
@@ -421,10 +569,31 @@ function renderDays() {
   }
   initSortable();
 }
+// 一天所有項目，依時段與順序排好
+function dayItems(d) {
+  return SLOTS.flatMap(s => Object.entries(d?.slots?.[s.key] || {}).map(([id, it]) => ({ id, slot: s.key, ...it }))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+}
+// 當天出發的航班／火車（depart 是 "YYYY-MM-DD HH:mm"）
+function transportOn(date) {
+  if (!date) return [];
+  const flights = Object.values(currentTrip.flights || {}).filter(f => (f.depart || '').startsWith(date))
+    .map(f => ({ time: f.depart.slice(11, 16), label: `✈️ ${f.flightNo || f.airline || '航班'} ${f.fromCode || ''}→${f.toCode || ''}` }));
+  const trains = Object.values(currentTrip.trains || {}).filter(t => t.date === date)
+    .map(t => ({ time: t.departTime || '', label: `🚆 ${t.trainNo || '火車'} ${t.from || ''}→${t.to || ''}` }));
+  return [...flights, ...trains].sort((a, b) => a.time.localeCompare(b.time));
+}
+const overnightFlight = (date) => Object.values(currentTrip.flights || {})
+  .some(f => (f.depart || '').startsWith(date) && (f.arrive || '').slice(0, 10) > date);
+// 某天晚上住哪：checkIn <= 當天 < checkOut
+function hotelFor(date) {
+  if (!date) return null;
+  return Object.values(currentTrip.hotels || {}).find(h => h.checkIn && h.checkOut && h.checkIn <= date && date < h.checkOut) || null;
+}
 function renderSlot(dayId, slot, items) {
   const arr = Object.entries(items || {}).map(([id, it]) => ({ id, ...it })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   return `
-    <div class="slot">
+    <div class="slot ${arr.length ? '' : 'is-empty'}">
       <div class="slot-head"><span class="slot-label">${slot.label}</span><button class="slot-add" data-day-id="${dayId}" data-slot-key="${slot.key}" title="新增">+</button></div>
       <div class="slot-items ${arr.length===0?'empty':''}" data-day-id="${dayId}" data-slot-key="${slot.key}">
         ${arr.map(it => renderItem(dayId, slot.key, it)).join('')}
@@ -438,9 +607,58 @@ function renderItem(dayId, slotKey, it) {
       <div class="item-icon">${icon}</div>
       <div class="item-title">${escapeHtml(it.title||'未命名')}</div>
       ${it.time ? `<div class="item-time">⏱ ${escapeHtml(it.time)}</div>` : ''}
-      ${it.address ? `<div class="item-meta"><a href="https://maps.google.com/?q=${encodeURIComponent(it.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(it.address)}</a></div>` : ''}
-      ${it.note ? `<div class="item-note">${escapeHtml(it.note)}</div>` : ''}
+      ${it.address ? `<div class="item-meta"><a href="${mapUrl(it.address)}" target="_blank" rel="noopener" class="map-link">📍 ${escapeHtml(it.address)}</a></div>` : ''}
+      ${it.budget ? `<div class="item-meta">💶 ${escapeHtml(it.budget)}</div>` : ''}
+      ${it.note ? `<div class="item-note">${linkify(it.note)}</div>` : ''}
+      ${it.url ? `<div class="item-meta"><a href="${escapeHtml(it.url)}" target="_blank" rel="noopener" class="map-link">${linkLabel(it.url)}</a></div>` : ''}
     </div>`;
+}
+
+// ── 日期跳轉列 ─────────────────────────────
+function renderDayNav() {
+  const days = Object.entries(currentTrip.days || {}).sort(([, a], [, b]) => (a.date || '').localeCompare(b.date || ''));
+  const today = todayLocal();
+  const todayDay = days.find(([, d]) => d.date === today);
+  $('#dayNav').innerHTML = (todayDay ? `<button class="day-chip today" data-jump="${todayDay[0]}">今天</button>` : '') +
+    days.map(([id, d], i) => {
+      const dt = parseDate(d.date);
+      const label = isNaN(dt) ? `D${i+1}` : `${dt.getMonth()+1}/${dt.getDate()}`;
+      return `<button class="day-chip ${d.date === today ? 'is-today' : ''}" data-jump="${id}"><small>D${i+1}</small>${label}</button>`;
+    }).join('');
+}
+
+// ── 今日速覽：今天去哪、第一個行程、今晚住哪、明天 ─────
+function renderTodayCard() {
+  const box = $('#todayCard');
+  const days = Object.entries(currentTrip.days || {}).filter(([, d]) => d.date)
+    .sort(([, a], [, b]) => a.date.localeCompare(b.date));
+  const today = todayLocal();
+  if (!days.length || today > days[days.length - 1][1].date) { box.hidden = true; return; }
+  const before = today < days[0][1].date;
+  const idx = before ? 0 : days.findIndex(([, d]) => d.date === today);
+  if (idx < 0) { box.hidden = true; return; }
+  const [dayId, day] = days[idx];
+  const next = days[idx + 1];
+  // 「住 XX」這種沒時間的住宿標記不算行程；「07:00 退房」這種有時間的要算
+  const firstOf = (d) => dayItems(d).find(it => it.type !== 'hotel' || it.time);
+  const first = firstOf(day);
+  const stay = hotelFor(day.date);
+  const moves = transportOn(day.date);
+  const nextFirst = next && firstOf(next[1]);
+  const daysLeft = Math.round((parseDate(day.date) - parseDate(today)) / 86400000);
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="today-head">
+      <span class="today-eyebrow">${before ? `還有 ${daysLeft} 天出發 · 第一天` : 'TODAY · 今天'}</span>
+      <span class="today-date">${fmtDate(day.date)}　${escapeHtml(day.city || '')}</span>
+    </div>
+    <div class="today-rows">
+      ${moves.map(m => `<div class="today-row"><span>${m.label.slice(0, 2)} 交通</span><b>${escapeHtml(m.time)} ${escapeHtml(m.label.slice(2).trim())}</b></div>`).join('')}
+      ${first || !moves.length ? `<div class="today-row"><span>⏱ 第一個行程</span><b>${first ? `${escapeHtml(first.time || '')} ${escapeHtml(first.title || '')}` : '—'}</b></div>` : ''}
+      <div class="today-row"><span>🏨 今晚住</span><b>${stay ? `${escapeHtml(stay.name)}${stay.address ? ` <a href="${mapUrl(stay.address)}" target="_blank" rel="noopener">導航 →</a>` : ''}` : (overnightFlight(day.date) ? '✈️ 機上過夜' : '—')}</b></div>
+      ${next ? `<div class="today-row"><span>➡️ 明天</span><b>${escapeHtml(next[1].city || fmtDate(next[1].date))}${nextFirst ? `　${escapeHtml(nextFirst.time || '')} ${escapeHtml(nextFirst.title || '')}` : ''}</b></div>` : ''}
+    </div>
+    <button class="today-jump" data-jump="${dayId}">看${before ? '第一天' : '今天'}行程 ↓</button>`;
 }
 
 // ── 拖曳 ───────────────────────────────────
@@ -449,9 +667,9 @@ function initSortable() {
   $$('.slot-items').forEach(c => sortables.push(Sortable.create(c, {
     group: 'items', animation: 200, ghostClass: 'ghost', dragClass: 'dragging', chosenClass: 'chosen',
     delay: 150, delayOnTouchOnly: true, touchStartThreshold: 6, fallbackTolerance: 3,
-    scroll: true, scrollSensitivity: 120, scrollSpeed: 18, bubbleScroll: true,
+    scroll: true, scrollSensitivity: 120, scrollSpeed: 18, bubbleScroll: true, disabled: !editMode,
     onStart: () => { sortableDragging = true; if (navigator.vibrate) navigator.vibrate(12); },
-    onEnd: (evt) => { sortableDragging = false; handleDragEnd(evt); }
+    onEnd: (evt) => { sortableDragging = false; handleDragEnd(evt); if (renderPending) { renderPending = false; renderTrip(); } }
   })));
 }
 async function handleDragEnd(evt) {
@@ -481,7 +699,7 @@ function addDay() {
   const days = currentTrip?.days || {};
   const dates = Object.values(days).map(d => d.date).filter(Boolean).sort();
   let next = currentTrip?.meta?.startDate || '';
-  if (dates.length) { const l = new Date(dates[dates.length-1]); l.setDate(l.getDate()+1); next = l.toISOString().slice(0,10); }
+  if (dates.length) { const l = parseDate(dates[dates.length-1]); l.setDate(l.getDate()+1); next = isoLocal(l); }
   tripsRef.child(currentTripId).child('days').child('day-'+uid()).set({ date: next, city: '', slots: {} });
   touchTrip();
   toast('已新增一天');
@@ -810,7 +1028,7 @@ function openExpenseEditor(expId) {
     </div>
     <div class="field-row">
       <div class="field"><label>分類</label><select id="m-category">${catOpts}</select></div>
-      <div class="field"><label>日期</label><input id="m-date" type="date" value="${e.date||new Date().toISOString().slice(0,10)}" /></div>
+      <div class="field"><label>日期</label><input id="m-date" type="date" value="${e.date||todayLocal()}" /></div>
     </div>
     <div class="field"><label>誰付的</label><select id="m-paidBy">${payOpts}</select></div>
     <div class="field">
@@ -959,6 +1177,7 @@ function openModal(title, html, onSave, onDelete) {
   $('#modal').hidden = false;
   modalSaveHandler = onSave; modalDeleteHandler = onDelete;
   $('#modalDelete').hidden = !onDelete;
+  $('#modalSave').hidden = !onSave;
   document.body.style.overflow = 'hidden';
 }
 function closeModal() {
@@ -1072,15 +1291,19 @@ function initSwipeBack() {
     const dx = e.changedTouches[0].clientX - startX;
     const dy = Math.abs(e.changedTouches[0].clientY - startY);
     // 從左邊緣（50px 內）右滑超過 80px，且垂直偏移小
-    if (dx > 80 && dy < 70 && startX < 50) showHome();
+    if (dx > 80 && dy < 70 && startX < 50) goHome();
   }, { passive: true });
 }
 
 // ── 啟動 ───────────────────────────────────
-showHome();
-bootData();
+editMode = lsGet('editMode') === '1';
 bindGlobalEvents();
+applyEditMode();
+showHome({ push: false });
+bootData();
 initSwipeBack();
+// 離線快取：沒訊號時也能打開網頁（資料用上次同步的本機快取）
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 window.addDay = addDay;
 window.__debugSetTrip = (data) => { allTrips = { __preview: data }; currentTripId = '__preview'; currentTrip = data; view='trip'; $('#home').hidden=true; $('#app').hidden=false; switchTab('itinerary'); renderTrip(); };
 window.__debugShowExpenses = () => { switchTab('expenses'); };
