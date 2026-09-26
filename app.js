@@ -273,6 +273,10 @@ function renderCover() {
   $('#coverCities').textContent = m.citiesText || '城市路線';
   $('#coverDates').textContent = dateRange(m.startDate, m.endDate) || '＋ 設定日期';
   $('#coverImg').style.backgroundImage = m.coverPhoto ? `url("${m.coverPhoto}")` : '';
+  // 首爾景點庫只在韓國行程出現
+  const isSeoul = /首爾|韓國|seoul|korea/i.test(`${m.title || ''} ${m.citiesText || ''}`);
+  $('.tab[data-tab="guide"]').hidden = !isSeoul;
+  if (!isSeoul && currentTab === 'guide') switchTab('itinerary');
 }
 
 // ── 航班 ───────────────────────────────────
