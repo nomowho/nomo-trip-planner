@@ -65,7 +65,6 @@ let currentTab = 'itinerary';      // 'itinerary' | 'expenses'
 let sortables = [];
 let sortableDragging = false;
 let pendingScrollDayId = null;
-let collapsedDays = new Set();
 
 // ── 工具 ───────────────────────────────────
 const $ = (s, el = document) => el.querySelector(s);
@@ -129,7 +128,6 @@ function enterTrip(id) {
   currentTripId = id;
   currentTrip = allTrips[id];
   view = 'trip';
-  collapsedDays = new Set();
   localStorage.setItem('lastTripId', id);
   $('#home').hidden = true;
   $('#app').hidden = false;
@@ -382,7 +380,7 @@ function renderDays() {
   }
   list.innerHTML = ids.map((id, idx) => {
     const d = days[id];
-    const collapsed = collapsedDays.has(id);
+    const collapsed = !!d.collapsed;
     return `
       <article class="day-card" data-day-id="${id}">
         <header class="day-head">
@@ -403,8 +401,10 @@ function renderDays() {
     const id = b.dataset.dayToggle;
     const slots = list.querySelector(`.day-card[data-day-id="${id}"] .slots`);
     if (!slots) return;
-    if (slots.hidden) { slots.hidden = false; collapsedDays.delete(id); b.textContent = '▼'; }
-    else { slots.hidden = true; collapsedDays.add(id); b.textContent = '▶'; }
+    slots.hidden = !slots.hidden;
+    b.textContent = slots.hidden ? '▶' : '▼';
+    // 收合狀態存進資料庫，跨裝置固定
+    tripsRef.child(currentTripId).child('days').child(id).child('collapsed').set(slots.hidden || null);
   }));
   list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', () => openDayEditor(b.dataset.dayEdit)));
   list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', () => deleteDay(b.dataset.dayDel)));
