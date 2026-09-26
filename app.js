@@ -310,7 +310,7 @@ function renderHotels() {
   if (!arr.length) { grid.innerHTML = emptyHint('尚無住宿，點右上 + 新增'); return; }
   grid.innerHTML = arr.map(h => `
     <article class="hotel-card" data-hotel-id="${h.id}">
-      <div class="hotel-img" ${h.photo ? `style="background-image:url('${escapeHtml(h.photo)}')"` : ''}></div>
+      ${h.photo ? `<div class="hotel-img" style="background-image:url('${escapeHtml(h.photo)}')"></div>` : ''}
       <div class="hotel-body">
         <div class="hotel-city">${escapeHtml(h.city||'')}</div>
         <h3 class="hotel-name">${escapeHtml(h.name||'未命名住宿')}</h3>
