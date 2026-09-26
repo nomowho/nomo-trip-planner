@@ -161,6 +161,7 @@ function bindGlobalEvents() {
     if (b.dataset.add === 'flight') openFlightEditor();
     if (b.dataset.add === 'hotel') openHotelEditor();
     if (b.dataset.add === 'car') openCarEditor();
+    if (b.dataset.add === 'train') openTrainEditor();
   }));
   // 區段縮合切換
   $$('.section-toggle').forEach(btn => {
@@ -264,7 +265,7 @@ function touchTrip() {
 }
 function renderTrip() {
   if (!currentTrip) return;
-  renderCover(); renderFlights(); renderHotels(); renderCars(); renderDays();
+  renderCover(); renderFlights(); renderHotels(); renderCars(); renderTrains(); renderDays();
   if (currentTab === 'expenses') renderExpenses();
 }
 function renderCover() {
@@ -346,6 +347,28 @@ function renderCars() {
       </div>
     </article>`).join('');
   grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', () => openCarEditor(c.dataset.carId)));
+}
+
+// ── 火車 ───────────────────────────────────
+function renderTrains() {
+  const grid = $('#trainsGrid');
+  if (!grid) return;
+  const arr = Object.entries(currentTrip.trains || {}).map(([id, t]) => ({ id, ...t }))
+    .sort((a, b) => `${a.date || ''} ${a.departTime || ''}`.localeCompare(`${b.date || ''} ${b.departTime || ''}`));
+  if (!arr.length) { grid.innerHTML = emptyHint('尚無火車記錄，點右上 + 新增'); return; }
+  grid.innerHTML = arr.map(t => `
+    <article class="car-card" data-train-id="${t.id}">
+      <div class="car-icon">🚆</div>
+      <div class="car-body">
+        <div class="car-company">${escapeHtml([t.operator, t.trainNo].filter(Boolean).join(' ') || '火車')}</div>
+        <div class="car-type">${escapeHtml(t.from || '出發站')} → ${escapeHtml(t.to || '抵達站')}</div>
+        <div class="car-dates">📅 ${escapeHtml(t.date || '')} ${escapeHtml(t.departTime || '')}${t.arriveTime ? ' → ' + escapeHtml(t.arriveTime) : ''}</div>
+        ${t.seat ? `<div class="car-location">💺 ${escapeHtml(t.seat)}</div>` : ''}
+        ${t.bookingRef ? `<div class="car-ref">訂位代號 <strong>${escapeHtml(t.bookingRef)}</strong></div>` : ''}
+        ${t.note ? `<div class="car-note">${escapeHtml(t.note)}</div>` : ''}
+      </div>
+    </article>`).join('');
+  grid.querySelectorAll('.car-card').forEach(c => c.addEventListener('click', () => openTrainEditor(c.dataset.trainId)));
 }
 
 // ── 每日行程 ───────────────────────────────
@@ -603,6 +626,39 @@ function openCarEditor(carId) {
       closeModal(); toast(carId ? '已更新' : '已新增');
     },
     carId ? () => { if (!confirm('刪除這筆租車？')) return; tripsRef.child(currentTripId).child('cars').child(carId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
+}
+function openTrainEditor(trainId) {
+  const t = trainId ? (currentTrip.trains?.[trainId] || {}) : {};
+  openModal(trainId ? '編輯火車' : '新增火車', `
+    <div class="field-row">
+      <div class="field"><label>營運商</label><input id="m-operator" value="${escapeHtml(t.operator||'')}" placeholder="Trenitalia、Italo..." /></div>
+      <div class="field"><label>車次</label><input id="m-trainNo" value="${escapeHtml(t.trainNo||'')}" placeholder="FR 9520" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>出發站</label><input id="m-from" value="${escapeHtml(t.from||'')}" placeholder="Verona Porta Nuova" /></div>
+      <div class="field"><label>抵達站</label><input id="m-to" value="${escapeHtml(t.to||'')}" placeholder="Milano Centrale" /></div>
+    </div>
+    <div class="field"><label>日期</label><input id="m-date" type="date" value="${t.date||''}" /></div>
+    <div class="field-row">
+      <div class="field"><label>出發時間</label><input id="m-departTime" type="time" value="${t.departTime||''}" /></div>
+      <div class="field"><label>抵達時間</label><input id="m-arriveTime" type="time" value="${t.arriveTime||''}" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>車廂 / 座位</label><input id="m-seat" value="${escapeHtml(t.seat||'')}" placeholder="2 等車廂 · 5 車 12A" /></div>
+      <div class="field"><label>訂位代號</label><input id="m-bookingRef" value="${escapeHtml(t.bookingRef||'')}" /></div>
+    </div>
+    <div class="field"><label>備註</label><textarea id="m-note">${escapeHtml(t.note||'')}</textarea></div>`,
+    () => {
+      tripsRef.child(currentTripId).child('trains').child(trainId || 'trn-'+uid()).set({
+        operator: $('#m-operator').value.trim(), trainNo: $('#m-trainNo').value.trim(),
+        from: $('#m-from').value.trim(), to: $('#m-to').value.trim(), date: $('#m-date').value,
+        departTime: $('#m-departTime').value, arriveTime: $('#m-arriveTime').value,
+        seat: $('#m-seat').value.trim(), bookingRef: $('#m-bookingRef').value.trim(), note: $('#m-note').value.trim()
+      });
+      touchTrip();
+      closeModal(); toast(trainId ? '已更新' : '已新增');
+    },
+    trainId ? () => { if (!confirm('刪除這筆火車？')) return; tripsRef.child(currentTripId).child('trains').child(trainId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 }
 
 function openCoverEditor() {

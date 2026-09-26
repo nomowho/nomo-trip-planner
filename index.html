@@ -111,6 +111,20 @@
       </div>
     </section>
 
+    <!-- 火車 -->
+    <section class="section">
+      <div class="section-head">
+        <div class="section-head-title">
+          <button class="section-toggle" data-target="trainBody" title="展開 / 收起">▶</button>
+          <h2>TRAINS · 火車</h2>
+        </div>
+        <button class="add-btn" data-add="train">+ 新增火車</button>
+      </div>
+      <div id="trainBody" hidden>
+        <div class="cars-grid" id="trainsGrid"></div>
+      </div>
+    </section>
+
     <!-- 每日行程 -->
     <section class="section section-days">
       <div class="section-head">
@@ -207,6 +221,6 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="guide-data.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
