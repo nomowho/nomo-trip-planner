@@ -1435,3 +1435,8 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 /* 每人卡片：大數字是自己的真實花費，一律用主文字色；應收應付只在右上角上色 */
 #tab-expenses .pc .pc-big { color: var(--x-ink); }
 #tab-expenses .pc-state { font-family: var(--x-num); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 日期列／篩選列一律貼齊頂部選單的實際高度（含 iPhone 狀態列），由 app.js 量出 --nav-h */
+.day-tabs-bar, .guide-filter-bar { top: var(--nav-h, 56px); }
+.day-card { scroll-margin-top: calc(var(--nav-h, 56px) + 60px); }
+@media (max-width: 600px) { .day-tabs-bar, .guide-filter-bar { top: var(--nav-h, 52px); } .day-card { scroll-margin-top: calc(var(--nav-h, 52px) + 56px); } }

@@ -2170,3 +2170,15 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 window.addDay = addDay;
 window.__debugSetTrip = (data) => { allTrips = { __preview: data }; currentTripId = '__preview'; currentTrip = data; view='trip'; $('#home').hidden=true; $('#app').hidden=false; switchTab('itinerary'); renderTrip(); };
 window.__debugShowExpenses = () => { switchTab('expenses'); };
+
+// ── 日期列緊貼頂部選單 ───────────────────────
+// iPhone 加到主畫面或部分 App 內建瀏覽器，頂部選單會多出狀態列高度（safe-area），
+// 寫死的 top 會讓日期列滑到選單底下、看起來像被捲走；改成量實際高度
+(() => {
+  const nav = document.querySelector('#app .topnav');
+  if (!nav) return;
+  const sync = () => document.documentElement.style.setProperty('--nav-h', Math.round(nav.getBoundingClientRect().height) + 'px');
+  sync();
+  if ('ResizeObserver' in window) new ResizeObserver(sync).observe(nav);
+  window.addEventListener('orientationchange', () => setTimeout(sync, 300));
+})();
