@@ -14,8 +14,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <!-- 英文 Manrope、中文思源黑體；每日主題用思源宋體 -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=42" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=51" />
 </head>
 <body>
 
@@ -174,23 +174,34 @@
           <button class="ghost-btn small" id="editMembersBtn">編輯成員</button>
         </div>
         <div class="config-block">
-          <span class="config-label">匯率（1 外幣 = ? 台幣）</span>
+          <span class="config-label">匯率（換台幣）</span>
           <div class="rates-chips" id="ratesChips"></div>
           <button class="ghost-btn small" id="editRatesBtn">設定匯率</button>
         </div>
       </div>
 
+      <!-- 每人花費：個人消費＋分攤份額；點某人只看他的明細 -->
       <div class="section-head">
-        <h2>支出明細</h2>
-        <button class="add-btn" id="addExpenseBtn">+ 記一筆</button>
+        <h2>每人花費</h2>
       </div>
-      <div class="expense-list" id="expenseList"></div>
+      <div class="member-stats" id="memberStats"></div>
 
-      <!-- 分帳結算 -->
-      <div class="section-head" style="margin-top:36px;">
-        <h2>分帳結算</h2>
+      <!-- 桌機：左 68% 明細、右 32% 結算；手機依序往下 -->
+      <div class="exp-layout">
+        <div class="exp-col-main">
+          <div class="section-head">
+            <h2>支出明細</h2>
+            <button class="primary-btn" id="addExpenseBtn">＋ 記一筆</button>
+          </div>
+          <div class="expense-list" id="expenseList"></div>
+        </div>
+        <aside class="exp-col-side">
+          <div class="section-head">
+            <h2>分帳結算</h2>
+          </div>
+          <div class="settlement" id="settlement"></div>
+        </aside>
       </div>
-      <div class="settlement" id="settlement"></div>
     </section>
   </div>
 
@@ -241,7 +252,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="guide-data.js?v=8"></script>
-<script src="icons.js?v=2"></script>
-<script src="app.js?v=39"></script>
+<script src="icons.js?v=3"></script>
+<script src="app.js?v=48"></script>
 </body>
 </html>

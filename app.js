@@ -37,13 +37,23 @@ const TYPE_LABEL = {
 
 // 記帳分類
 const EXPENSE_CATS = {
-  food:     '🍽️ 餐飲',
-  stay:     '🏨 住宿',
-  transit:  '🚗 交通',
-  ticket:   '🎫 門票',
-  shopping: '🛍️ 購物',
-  grocery:  '🛒 採買',
-  other:    '📦 雜支'
+  food:     '餐飲',
+  stay:     '住宿',
+  transit:  '交通',
+  ticket:   '門票',
+  shopping: '購物',
+  grocery:  '採買',
+  other:    '雜支'
+};
+// 記帳分類 → Lucide 圖示與色系（跟行程同一套：sage／fog／clay／ink）
+const EXPENSE_META = {
+  food:     { icon: 'utensils',      tone: 'clay' },
+  stay:     { icon: 'bed-double',    tone: 'ink' },
+  transit:  { icon: 'car',           tone: 'fog' },
+  ticket:   { icon: 'ticket',        tone: 'sage' },
+  shopping: { icon: 'shopping-bag',  tone: 'clay' },
+  grocery:  { icon: 'shopping-cart', tone: 'sage' },
+  other:    { icon: 'package',       tone: 'ink' }
 };
 // OCR 關鍵字 → 分類（義/英/中）
 const CAT_KEYWORDS = {
@@ -222,7 +232,7 @@ function bindGlobalEvents() {
     const b = e.target.closest('[data-jump]'); if (!b) return;
     if (e.detail) b.blur();   // 滑鼠／觸控點完放掉焦點，只留選中狀態
     setActiveDayTab(b.dataset.jump);
-    spyLockUntil = Date.now() + 1200;   // 等平滑捲動結束再恢復跟隨
+    spyLockUntil = Date.now() + 4000;   // 平滑捲動結束（停止捲動 200ms）才恢復跟隨，最多鎖 4 秒
     if (b.dataset.jump === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
     const el = $(`.day-card[data-day-id="${b.dataset.jump}"]`);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -239,7 +249,10 @@ function bindGlobalEvents() {
     if (!$('#modal').hidden) closeModal(); else if (!$('#mapView').hidden) closeMapView(); else if (!$('#infoSheet').hidden) closeSheet();
   });
   let spyTick = false;
+  let spyRelease = null;
   window.addEventListener('scroll', () => {
+    // 跳轉中：每次捲動都延後解鎖，直到捲動停下來
+    if (Date.now() < spyLockUntil) { clearTimeout(spyRelease); spyRelease = setTimeout(() => { spyLockUntil = 0; updateActiveDayTab(); }, 200); return; }
     if (spyTick) return; spyTick = true;
     requestAnimationFrame(() => { spyTick = false; updateActiveDayTab(); });
   }, { passive: true });
@@ -1422,62 +1435,183 @@ function toTWD(amount, currency, meta) {
   return rate ? amount * rate : amount;
 }
 
+// 旅程身分：從行程名稱／城市推出 kicker、國旗與國名（沒對到就只顯示年份）
+const TRIP_PLACES = [
+  [/dolomit|多洛米蒂/i, 'DOLOMITI', '🇮🇹', 'Italy'],
+  [/milano|venezia|verona|roma|firenze|toscana|italy|italia|義大利/i, 'ITALIA', '🇮🇹', 'Italy'],
+  [/seoul|首爾/i, 'SEOUL', '🇰🇷', 'Korea'],
+  [/busan|釜山|korea|韓國/i, 'KOREA', '🇰🇷', 'Korea'],
+  [/tokyo|東京/i, 'TOKYO', '🇯🇵', 'Japan'],
+  [/osaka|kyoto|大阪|京都/i, 'KANSAI', '🇯🇵', 'Japan'],
+  [/aomori|青森|japan|日本/i, 'JAPAN', '🇯🇵', 'Japan'],
+];
+function tripIdentity(meta = {}) {
+  const hay = `${meta.title || ''} ${meta.citiesText || ''}`;
+  const hit = TRIP_PLACES.find(([re]) => re.test(hay));
+  const year = (meta.startDate || '').slice(0, 4);
+  const md = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  return {
+    kicker: [hit ? hit[1] : 'TRIP', year].filter(Boolean).join(' '),
+    range: meta.startDate ? `${md(meta.startDate)} — ${md(meta.endDate || meta.startDate)}` : '',
+    // Windows 沒有國旗 emoji（會變成兩個字母），只留國名
+    flag: hit && !/Windows/.test(navigator.userAgent) ? hit[2] : '', country: hit ? hit[3] : ''
+  };
+}
+const signed = (v) => (v >= 0.5 ? '+ ' : v <= -0.5 ? '− ' : '') + ntd(Math.abs(v));
+
+// 某筆支出算在某人身上多少：個人消費＝付款人全額；分攤＝勾選的人平均
+let expFilter = null;   // 只看某位成員的明細（null＝全部）
+const expOpenDays = new Set();   // 展開中的日期（預設全部收合）
+function shareOf(e, m, members, twd) {
+  if (!e.shared) return e.paidBy === m ? twd : 0;
+  const split = (e.splitWith && e.splitWith.length) ? e.splitWith.filter(x => members.includes(x)) : members;
+  return split.includes(m) ? twd / split.length : 0;
+}
+// 每人：個人支出、共同分攤、代墊的共同支出；net＝代墊−分攤（正＝應收，負＝應付），跟結算同一套算法
+function memberStats(exps, members, twdOf) {
+  return members.map(m => {
+    let personal = 0, shared = 0, paid = 0, sharedPaid = 0; const byCat = {};
+    exps.forEach(e => {
+      const t = twdOf(e), s = shareOf(e, m, members, t);
+      if (e.paidBy === m) { paid += t; if (e.shared) sharedPaid += t; }
+      if (!s) return;
+      if (e.shared) shared += s; else personal += s;
+      byCat[e.category] = (byCat[e.category] || 0) + s;
+    });
+    return { m, personal, shared, spent: personal + shared, paid, sharedPaid, net: sharedPaid - shared, byCat };
+  });
+}
+
 function renderExpenses() {
   if (!currentTrip) return;
   const exps = Object.entries(currentTrip.expenses || {}).map(([id, e]) => ({ id, ...e }))
     .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt||0) - (a.createdAt||0));
+  const twdOf = (e) => toTWD(e.amount, e.currency, currentTrip.meta);
+  const members = getMembers();
 
-  // 摘要
-  const total = exps.reduce((s, e) => s + toTWD(e.amount, e.currency, currentTrip.meta), 0);
+  // Hero：旅程身分＋總支出；右上三個數字；分類長條的數字直接寫在線條上方
+  const total = exps.reduce((s, e) => s + twdOf(e), 0);
   const byCat = {};
-  exps.forEach(e => { const t = toTWD(e.amount, e.currency, currentTrip.meta); byCat[e.category] = (byCat[e.category]||0) + t; });
-  const catBars = Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([c, v]) => {
-    const pct = total ? Math.round(v/total*100) : 0;
-    return `<div class="cat-bar"><span class="cat-bar-label">${EXPENSE_CATS[c]||c}</span>
-      <span class="cat-bar-track"><span class="cat-bar-fill" style="width:${pct}%"></span></span>
-      <span class="cat-bar-val">${ntd(v)} · ${pct}%</span></div>`;
+  exps.forEach(e => { byCat[e.category] = (byCat[e.category] || 0) + twdOf(e); });
+  const cats = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const id = tripIdentity(currentTrip.meta);
+  const catRows = cats.map(([c, v]) => {
+    const pct = total ? Math.round(v / total * 100) : 0;
+    return `<div class="xh-cat">
+      <div class="xh-cat-line"><span>${EXPENSE_CATS[c] || c}</span><span class="xh-num">${ntd(v)} · ${pct}%</span></div>
+      <div class="xh-track"><span style="width:${pct}%"></span></div></div>`;
   }).join('');
   $('#expenseSummary').innerHTML = `
-    <div class="summary-total"><span class="summary-label">總支出（換算台幣）</span><span class="summary-amount">${ntd(total)}</span><span class="summary-count">${exps.length} 筆</span></div>
-    ${catBars ? `<div class="cat-bars">${catBars}</div>` : ''}`;
+    <div class="xh-top">
+      <div class="xh-id">
+        <p class="xh-kicker">${escapeHtml(id.kicker)}${id.range ? `<span>${id.range}</span>` : ''}</p>
+        <p class="xh-label">總支出</p>
+        <div class="xh-total"><small>NT$</small>${Math.round(total).toLocaleString('en-US')}</div>
+      </div>
+      <dl class="xh-stats">
+        <div><dt>支出</dt><dd>${exps.length} 筆</dd></div>
+        <div><dt>成員</dt><dd>${members.length} 位</dd></div>
+        ${members.length > 1 && total ? `<div><dt>平均</dt><dd>${ntd(total / members.length)}</dd></div>` : ''}
+      </dl>
+      ${id.country ? `<span class="xh-country">${id.flag} ${id.country}</span>` : ''}
+    </div>
+    ${catRows ? `<div class="xh-cats">${catRows}</div>` : ''}`;
 
-  // 成員 / 匯率 chips
-  $('#membersChips').innerHTML = getMembers().map(m => `<span class="chip">${escapeHtml(m)}</span>`).join('') || '<span class="chip muted">尚未設定</span>';
+  // 成員／匯率：安靜的一行字
+  $('#membersChips').textContent = members.join('、') || '尚未設定';
   const rates = getRates();
-  $('#ratesChips').innerHTML = Object.keys(rates).length
-    ? Object.entries(rates).map(([c, r]) => `<span class="chip">1 ${c} = ${r} TWD</span>`).join('')
-    : '<span class="chip muted">尚未設定</span>';
+  $('#ratesChips').textContent = Object.keys(rates).length
+    ? Object.entries(rates).map(([c, r]) => `1 ${c} = ${r}`).join('　') : '尚未設定';
 
-  // 明細
+  // 每人花費：每張卡講一個故事（應收／應付／已結清）
+  if (expFilter && !members.includes(expFilter)) expFilter = null;
+  const stats = memberStats(exps, members, twdOf);
+  const box = $('#memberStats');
+  box.innerHTML = members.length < 2 && !exps.length ? '' : stats.map(s => {
+    const state = s.net >= 0.5 ? 'pos' : s.net <= -0.5 ? 'neg' : 'even';
+    // 大數字＝自己真正花的錢（分攤份額＋個人支出），代墊的錢不算進來；應收應付只放右上角
+    const label = state === 'even' ? '已結清' : `${state === 'pos' ? '應收' : '應付'} ${ntd(Math.abs(s.net))}`;
+    const big = s.spent;
+    const rows = [['共同分攤', s.shared], ['個人支出', s.personal]];
+    const catLine = Object.entries(s.byCat).sort((a, b) => b[1] - a[1]).slice(0, 3)
+      .map(([k, v]) => `${EXPENSE_CATS[k] || k} ${ntd(v)}`).join(' · ');
+    return `<button class="pc pc-${state} ${expFilter === s.m ? 'is-active' : ''}" data-member="${escapeHtml(s.m)}" aria-pressed="${expFilter === s.m}">
+      <span class="pc-head"><span class="pc-name">${escapeHtml(s.m)}</span><span class="pc-state">${label}</span></span>
+      <span class="pc-big">${ntd(big)}</span>
+      <span class="pc-rows">${rows.map(([k, v, cls]) => `<span class="pc-row ${cls || ''}"><span>${k}</span><span>${ntd(v)}</span></span>`).join('')}</span>
+      ${catLine ? `<span class="pc-cats">${catLine}</span>` : ''}
+    </button>`;
+  }).join('');
+  box.querySelectorAll('.pc').forEach(b => b.addEventListener('click', () => {
+    expFilter = expFilter === b.dataset.member ? null : b.dataset.member;
+    renderExpenses();
+  }));
+
+  // 明細：依日期分組，組頭帶當天的地名（取自行程）與小計
   const list = $('#expenseList');
-  if (!exps.length) { list.innerHTML = emptyHint('還沒有支出，點「記一筆」或掃描收據開始'); }
+  const shown = expFilter ? exps.filter(e => shareOf(e, expFilter, members, twdOf(e)) > 0) : exps;
+  const amountOf = (e) => expFilter ? shareOf(e, expFilter, members, twdOf(e)) : twdOf(e);
+  const filterBar = expFilter ? `<div class="exp-filter">只看 <b>${escapeHtml(expFilter)}</b> 的消費 · ${shown.length} 筆<button class="ghost-btn" id="clearExpFilter">看全部</button></div>` : '';
+  if (!shown.length) { list.innerHTML = filterBar + emptyHint(expFilter ? '這位成員還沒有消費紀錄' : '還沒有支出，按「記一筆」或掃描收據開始'); $('#clearExpFilter')?.addEventListener('click', () => { expFilter = null; renderExpenses(); }); }
   else {
-    list.innerHTML = exps.map(e => {
-      const twd = toTWD(e.amount, e.currency, currentTrip.meta);
-      const home = getHomeCur();
-      const origStr = (e.currency && e.currency !== home) ? `${e.currency} ${Number(e.amount).toLocaleString()}` : '';
-      const splitInfo = e.shared ? `SHARE · ${(e.splitWith && e.splitWith.length) ? e.splitWith.join('/') : '全員'}` : '個人';
-      return `
-        <article class="exp-row" data-exp="${e.id}">
-          ${e.receiptThumb ? `<img class="exp-thumb" src="${e.receiptThumb}" alt="收據" />` : `<div class="exp-cat-icon">${(EXPENSE_CATS[e.category]||'📦').split(' ')[0]}</div>`}
-          <div class="exp-main">
-            <div class="exp-title">${escapeHtml(e.title || EXPENSE_CATS[e.category] || '支出')}</div>
-            <div class="exp-sub">${fmtDate(e.date)} · ${escapeHtml(e.paidBy||'?')} 付 · <span class="${e.shared?'tag-share':'tag-self'}">${splitInfo}</span></div>
-          </div>
-          <div class="exp-amt"><div class="exp-twd">${ntd(twd)}</div>${origStr?`<div class="exp-orig">${origStr}</div>`:''}</div>
-        </article>`;
-    }).join('');
+    const dayShort = {};
+    Object.values(currentTrip.days || {}).forEach(d => { if (d.date) dayShort[d.date] = d.short || String(d.city || '').split('→').pop().trim(); });
+    const groups = [];
+    shown.forEach(e => { const k = e.date || ''; let g = groups.find(x => x.date === k); if (!g) groups.push(g = { date: k, items: [] }); g.items.push(e); });
+    const home = getHomeCur();
+    list.innerHTML = filterBar + groups.map(g => `
+      <section class="exp-day ${expOpenDays.has(g.date) ? 'is-open' : ''}" data-exp-day="${escapeHtml(g.date)}">
+        <button class="exp-day-head" aria-expanded="${expOpenDays.has(g.date)}">
+          <span class="exp-day-date">${fmtDate(g.date) || '未填日期'}</span>
+          ${dayShort[g.date] ? `<span class="exp-day-place">${escapeHtml(dayShort[g.date])}</span>` : ''}
+          <span class="exp-day-count">${g.items.length} 筆</span>
+          <span class="exp-day-sum">${ntd(g.items.reduce((s, e) => s + amountOf(e), 0))}</span>
+          ${icon('chevron-down', 'exp-day-chev')}
+        </button>
+        <div class="exp-day-list">
+          ${g.items.map(e => {
+            const m = EXPENSE_META[e.category] || EXPENSE_META.other;
+            const orig = (e.currency && e.currency !== home) ? `${e.currency} ${Number(e.amount).toLocaleString()}` : '';
+            const split = e.shared ? `分攤 ${(e.splitWith && e.splitWith.length) ? e.splitWith.length : members.length} 人` : '個人';
+            const meta = [`${escapeHtml(e.paidBy || '?')} 付`, split, Array.isArray(e.items) && e.items.length ? `${e.items.length} 項` : ''].filter(Boolean).join(' · ');
+            return `
+            <article class="exp-row" data-exp="${e.id}">
+              ${e.receiptThumb ? `<img class="exp-thumb" src="${e.receiptThumb}" alt="收據" />` : `<span class="exp-ico">${icon(m.icon)}</span>`}
+              <div class="exp-main">
+                <div class="exp-title">${escapeHtml(e.title || EXPENSE_CATS[e.category] || '支出')}</div>
+                <div class="exp-meta">${meta}</div>
+              </div>
+              <div class="exp-amt"><div class="exp-twd">${ntd(amountOf(e))}</div>${expFilter && e.shared ? `<div class="exp-orig">總額 ${ntd(twdOf(e))}</div>` : (orig ? `<div class="exp-orig">${orig}</div>` : '')}</div>
+            </article>`;
+          }).join('')}
+        </div>
+      </section>`).join('');
     list.querySelectorAll('.exp-row').forEach(r => r.addEventListener('click', () => openExpenseEditor(r.dataset.exp)));
+    // 點日期組頭：展開／收合那天（只切換畫面，不重畫整頁）
+    list.querySelectorAll('.exp-day-head').forEach(h => h.addEventListener('click', () => {
+      const sec = h.closest('.exp-day'), key = sec.dataset.expDay;
+      const open = !sec.classList.contains('is-open');
+      sec.classList.toggle('is-open', open); h.setAttribute('aria-expanded', open);
+      open ? expOpenDays.add(key) : expOpenDays.delete(key);
+    }));
+    $('#clearExpFilter')?.addEventListener('click', () => { expFilter = null; renderExpenses(); });
   }
 
   renderSettlement(exps);
 }
 
-// ── 結算（均分） ───────────────────────────
+// ── 結算：最少轉帳筆數＋可操作的轉帳卡 ───────────
+// 「已轉帳」存在 trips/<id>/settled/<key>，key 由付款人、收款人、金額組成：
+// 之後帳目一變，金額不同，舊的勾選自然失效，不會誤以為已經付清
+function settleKey(t) {
+  const s = `${t.from}|${t.to}|${Math.round(t.amt)}`;
+  let h = 5381; for (const ch of s) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
+  return 'tx-' + h.toString(36);
+}
 function renderSettlement(exps) {
   const box = $('#settlement');
   const members = getMembers();
-  if (members.length < 2) { box.innerHTML = `<p class="settle-hint">只有一位成員，無需分帳。到上方「編輯成員」加入旅伴即可啟用結算。</p>`; return; }
+  if (members.length < 2) { box.innerHTML = `<p class="settle-hint">只有一位成員，不需要分帳。按上方「編輯成員」加入旅伴，就會自動算出誰該付給誰。</p>`; return; }
 
   const paid = {}, owed = {};
   members.forEach(m => { paid[m] = 0; owed[m] = 0; });
@@ -1492,10 +1626,6 @@ function renderSettlement(exps) {
   });
   const bal = members.map(m => ({ m, v: paid[m] - owed[m] }));
 
-  const balRows = bal.map(b => `
-    <div class="bal-row"><span>${escapeHtml(b.m)}</span>
-      <span class="${b.v>=0?'bal-pos':'bal-neg'}">${b.v>=0?'應收 ':'應付 '}${ntd(Math.abs(b.v))}</span></div>`).join('');
-
   // 貪婪結算
   const debtors = bal.filter(b => b.v < -0.5).map(b => ({...b})).sort((a,b)=>a.v-b.v);
   const creditors = bal.filter(b => b.v > 0.5).map(b => ({...b})).sort((a,b)=>b.v-a.v);
@@ -1508,11 +1638,42 @@ function renderSettlement(exps) {
     if (Math.abs(debtors[i].v) < 0.5) i++;
     if (Math.abs(creditors[j].v) < 0.5) j++;
   }
-  const txRows = tx.length
-    ? tx.map(t => `<div class="settle-tx"><strong>${escapeHtml(t.from)}</strong> 付給 <strong>${escapeHtml(t.to)}</strong> <span class="settle-amt">${ntd(t.amt)}</span></div>`).join('')
-    : `<p class="settle-hint">目前帳目已平，無需轉帳 🎉</p>`;
 
-  box.innerHTML = `<div class="bal-list">${balRows}</div><div class="settle-tx-list">${txRows}</div>`;
+  const settled = currentTrip.settled || {};
+  tx.forEach(t => { t.key = settleKey(t); t.done = !!settled[t.key]; });
+  const doneCount = tx.filter(t => t.done).length;
+  const headline = !tx.length ? '帳目已平'
+    : doneCount === tx.length ? '全部轉帳完成' : `最少只需 ${tx.length} 筆轉帳`;
+  const sub = !tx.length ? '目前不需要任何轉帳' : doneCount ? `已完成 ${doneCount} / ${tx.length}` : '照下面轉完，大家就兩不相欠';
+
+  const cards = tx.map(t => `
+    <div class="st-card ${t.done ? 'is-done' : ''}" data-key="${t.key}">
+      <div class="st-who"><span>${escapeHtml(t.from)}</span>${icon('arrow-right')}<span>${escapeHtml(t.to)}</span></div>
+      <div class="st-amt">${ntd(t.amt)}</div>
+      <div class="st-actions">
+        <button type="button" class="st-copy" data-amt="${Math.round(t.amt)}">複製金額</button>
+        <button type="button" class="st-done" aria-pressed="${t.done}">${t.done ? '已轉帳 ✓' : '標記已轉帳'}</button>
+      </div>
+    </div>`).join('');
+
+  const summary = bal.map(b => `
+    <div class="st-bal"><span>${escapeHtml(b.m)}</span><span class="${b.v >= 0.5 ? 'is-pos' : b.v <= -0.5 ? 'is-neg' : ''}">${signed(b.v)}</span></div>`).join('');
+
+  box.innerHTML = `
+    <div class="st-head"><p class="st-title">${headline}</p><p class="st-sub">${sub}</p></div>
+    ${cards ? `<div class="st-cards">${cards}</div>` : ''}
+    <div class="st-summary"><p class="st-summary-label">成員結算</p>${summary}</div>`;
+
+  box.querySelectorAll('.st-copy').forEach(b => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.amt); toast(`已複製 ${Number(b.dataset.amt).toLocaleString('en-US')}`); }
+    catch { toast('無法複製，請手動輸入金額'); }
+  }));
+  box.querySelectorAll('.st-done').forEach(b => b.addEventListener('click', () => {
+    const card = b.closest('.st-card'), t = tx.find(x => x.key === card.dataset.key);
+    const ref = tripsRef.child(currentTripId).child('settled').child(t.key);
+    if (t.done) ref.set(null);
+    else ref.set({ from: t.from, to: t.to, amt: Math.round(t.amt), at: Date.now() });
+  }));
 }
 
 // ── 費用編輯（含 OCR 掃描） ─────────────────
@@ -1520,6 +1681,8 @@ let pendingReceiptThumb = null;
 function openExpenseEditor(expId) {
   const e = expId ? (currentTrip.expenses?.[expId] || {}) : {};
   pendingReceiptThumb = e.receiptThumb || null;
+  pendingReceiptItems = Array.isArray(e.items) ? e.items.map(x => ({ ...x })) : [];
+  pendingReceiptInfo = e.receipt ? { ...e.receipt } : null;
   const members = getMembers();
   const home = getHomeCur();
   const curOpts = [...new Set([home, ...COMMON_CURRENCIES, ...Object.keys(getRates())])]
@@ -1528,11 +1691,11 @@ function openExpenseEditor(expId) {
   const payOpts = members.map(m => `<option value="${m}" ${e.paidBy===m?'selected':''}>${escapeHtml(m)}</option>`).join('');
   const splitChips = members.map(m => {
     const on = !e.splitWith || e.splitWith.length === 0 || e.splitWith.includes(m);
-    return `<label class="split-chip"><input type="checkbox" class="m-split" value="${escapeHtml(m)}" ${on?'checked':''}/> ${escapeHtml(m)}</label>`;
+    return `<label class="split-chip"><input type="checkbox" class="m-split" value="${escapeHtml(m)}" ${on?'checked':''}/><span>${escapeHtml(m)}</span></label>`;
   }).join('');
 
   openModal(expId ? '編輯支出' : '記一筆', `
-    <button type="button" class="scan-btn" id="scanBtn">📷 掃描收據自動帶入</button>
+    <button type="button" class="scan-btn" id="scanBtn">${icon('receipt')}掃描收據，自動帶入明細</button>
     <div id="ocrStatus" class="ocr-status" hidden></div>
     <div id="receiptPreview" class="receipt-preview" ${pendingReceiptThumb?'':'hidden'}>
       ${pendingReceiptThumb?`<img src="${pendingReceiptThumb}" /><button type="button" id="rmReceipt">移除收據</button>`:''}
@@ -1548,8 +1711,15 @@ function openExpenseEditor(expId) {
     </div>
     <div class="field"><label>誰付的</label><select id="m-paidBy">${payOpts}</select></div>
     <div class="field">
-      <label><input type="checkbox" id="m-shared" ${e.shared!==false?'checked':''}/> 這筆要分攤（SHARE）</label>
+      <label class="share-toggle"><input type="checkbox" id="m-shared" ${e.shared!==false?'checked':''}/><span>這筆要分攤</span></label>
+      <p class="field-hint" id="sharedHint"></p>
       <div id="splitBox" class="split-box">${splitChips}</div>
+    </div>
+    <div class="field">
+      <label>項目明細</label>
+      <div id="receiptInfo" class="receipt-info"></div>
+      <div id="itemsBox" class="items-box"></div>
+      <button type="button" class="ghost-btn" id="addItemBtn">＋ 新增一項</button>
     </div>`,
     () => {
       const amount = Number($('#m-amount').value);
@@ -1560,6 +1730,7 @@ function openExpenseEditor(expId) {
         title: $('#m-title').value.trim(), amount, currency: $('#m-currency').value,
         category: $('#m-category').value, date: $('#m-date').value, paidBy: $('#m-paidBy').value,
         shared, splitWith, receiptThumb: pendingReceiptThumb || null,
+        items: collectReceiptItems(), receipt: pendingReceiptInfo || null,
         createdAt: e.createdAt || Date.now()
       });
       touchTrip();
@@ -1570,8 +1741,146 @@ function openExpenseEditor(expId) {
   // 綁定掃描 + 分攤顯示
   $('#scanBtn').addEventListener('click', () => $('#receiptInput').click());
   const rm = $('#rmReceipt'); if (rm) rm.addEventListener('click', () => { pendingReceiptThumb = null; $('#receiptPreview').hidden = true; $('#receiptPreview').innerHTML=''; });
-  $('#m-shared').addEventListener('change', e2 => { $('#splitBox').style.display = e2.target.checked ? '' : 'none'; });
-  $('#splitBox').style.display = $('#m-shared').checked ? '' : 'none';
+  // 不勾分攤＝個人消費，只算在付款人身上（每人花費會照這個統計）
+  const syncShared = () => {
+    const on = $('#m-shared').checked;
+    $('#splitBox').style.display = on ? '' : 'none';
+    $('#sharedHint').textContent = on ? '勾選的人平均分攤，會算進每個人的花費' : `個人消費：只算在付款人（${$('#m-paidBy').value}）身上`;
+  };
+  $('#m-shared').addEventListener('change', syncShared);
+  $('#m-paidBy').addEventListener('change', syncShared);
+  syncShared();
+  renderReceiptItems();
+  $('#addItemBtn').addEventListener('click', () => { pendingReceiptItems = collectReceiptItems(); pendingReceiptItems.push({ name: '', name_zh: '', qty: 1, unit_price: 0, amount: 0 }); renderReceiptItems(); });
+}
+
+// ── 收據明細：品項清單（可改名稱、數量、金額，可刪除） ─────
+let pendingReceiptItems = [], pendingReceiptInfo = null;
+function renderReceiptItems() {
+  const box = $('#itemsBox'); if (!box) return;
+  box.innerHTML = pendingReceiptItems.length ? pendingReceiptItems.map((it, i) => `
+    <div class="item-line" data-i="${i}">
+      <div class="il-main">
+        <input class="il-name" value="${escapeHtml(it.name_zh || it.name || '')}" placeholder="品名" aria-label="品名" />
+        ${it.name && it.name_zh && it.name !== it.name_zh ? `<small class="il-orig">${escapeHtml(it.name)}</small>` : ''}
+      </div>
+      <input class="il-qty" type="number" step="any" value="${it.qty ?? 1}" aria-label="數量" />
+      <input class="il-amt" type="number" step="0.01" value="${it.amount ?? ''}" aria-label="金額" />
+      <button type="button" class="il-del" aria-label="刪除這項">×</button>
+    </div>`).join('') : '<p class="field-hint">掃描收據會自動列出每個品項，也可以手動新增</p>';
+  box.querySelectorAll('.il-del').forEach(b => b.addEventListener('click', () => {
+    pendingReceiptItems = collectReceiptItems(); pendingReceiptItems.splice(+b.closest('.item-line').dataset.i, 1); renderReceiptItems();
+  }));
+  const info = $('#receiptInfo'); const r = pendingReceiptInfo;
+  if (info) info.innerHTML = r ? [
+    r.merchant && r.address ? `<span class="micro">${icon('map-pin')}${escapeHtml(r.address)}</span>` : '',
+    r.time ? `<span class="micro">${icon('clock')}${escapeHtml(r.time)}</span>` : '',
+    r.payment_method ? `<span class="micro">${icon('wallet')}${escapeHtml(r.payment_method)}</span>` : '',
+    r.tax ? `<span class="micro">稅 ${r.tax}</span>` : '',
+    r.tip ? `<span class="micro">小費／服務費 ${r.tip}</span>` : '',
+    r.receipt_no ? `<span class="micro">${icon('receipt')}${escapeHtml(r.receipt_no)}</span>` : ''
+  ].join('') : '';
+}
+function collectReceiptItems() {
+  const box = $('#itemsBox'); if (!box) return pendingReceiptItems;
+  return [...box.querySelectorAll('.item-line')].map(row => {
+    const prev = pendingReceiptItems[+row.dataset.i] || {};
+    const zh = row.querySelector('.il-name').value.trim();
+    return { ...prev, name_zh: zh, name: prev.name || zh, qty: Number(row.querySelector('.il-qty').value) || 1, amount: Number(row.querySelector('.il-amt').value) || 0 };
+  }).filter(x => x.name_zh || x.amount);
+}
+
+// ── Claude 讀收據 ─────────────────────────────
+// 透過中繼站呼叫：金鑰存在 Cloudflare（proxy/），網頁與資料庫都看不到；
+// 中繼站只接受本站＋真實行程代號的收據請求，並有每日上限
+const RECEIPT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['merchant', 'address', 'date', 'time', 'currency', 'total', 'tax', 'tip', 'payment_method', 'receipt_no', 'category', 'items'],
+  properties: {
+    merchant: { type: 'string' }, address: { type: 'string' },
+    date: { type: 'string', description: 'YYYY-MM-DD，看不到就空字串' }, time: { type: 'string', description: 'HH:MM' },
+    currency: { type: 'string', description: 'ISO 4217，例如 EUR、KRW、TWD' },
+    total: { type: 'number' }, tax: { type: 'number' }, tip: { type: 'number' },
+    payment_method: { type: 'string' }, receipt_no: { type: 'string' },
+    category: { type: 'string', enum: ['food', 'stay', 'transit', 'ticket', 'shopping', 'grocery', 'other'] },
+    items: { type: 'array', items: { type: 'object', additionalProperties: false,
+      required: ['name', 'name_zh', 'qty', 'unit_price', 'amount'],
+      properties: { name: { type: 'string' }, name_zh: { type: 'string' }, qty: { type: 'number' }, unit_price: { type: 'number' }, amount: { type: 'number' } } } }
+  }
+};
+const RECEIPT_SYSTEM = `你負責讀取旅途中的收據照片，依照指定格式回傳。
+- 金額一律用收據上的原幣數字，不要換算；total 是實際付款總額（含稅、服務費、小費）。
+- 每個品項都要列出：name 保留收據原文，name_zh 翻成繁體中文（台灣用語）；數量看不到就填 1。
+- 折扣列成負數品項。看不到的欄位：文字給空字串、數字給 0。
+- category 依店家性質選：餐飲 food、住宿 stay、交通 transit、門票 ticket、購物 shopping、超市採買 grocery、其他 other。`;
+const ANTHROPIC_SDK = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.128.0/+esm';
+const RECEIPT_PROXY = 'https://trip-receipt-proxy.nomowho.workers.dev';
+
+function imageForClaude(file) {
+  // 長邊縮到 1568px（Claude 建議上限），JPEG 0.85，回傳不含前綴的 base64
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, 1568 / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      resolve(cv.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = reject; img.src = url;
+  });
+}
+async function readReceiptWithClaude(file) {
+  const { default: Anthropic } = await import(ANTHROPIC_SDK);
+  // apiKey 只是占位，真正的金鑰由中繼站補上
+  const client = new Anthropic({ apiKey: 'via-proxy', baseURL: RECEIPT_PROXY, dangerouslyAllowBrowser: true, maxRetries: 1,
+    defaultHeaders: { 'X-Trip-Id': currentTripId || '' } });
+  const data = await imageForClaude(file);
+  let res;
+  try {
+    res = await client.beta.messages.create({
+      model: 'claude-opus-5',
+      max_tokens: 8000,
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',   // 若被婉拒，伺服器自動改用其他模型重跑
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: RECEIPT_SCHEMA } },
+      system: RECEIPT_SYSTEM,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
+        { type: 'text', text: '請讀取這張收據。' }
+      ] }]
+    });
+  } catch (err) {
+    const why = err?.error?.error?.message || '';
+    if (err instanceof Anthropic.RateLimitError) throw new Error(why === 'daily_limit' ? '今天的收據辨識次數已用完，明天再試，或先手動輸入' : '掃太快了，請等一分鐘再試');
+    if (err instanceof Anthropic.PermissionDeniedError) throw new Error(why === 'unknown_trip' ? '這個行程還沒同步到雲端，無法使用收據辨識' : '辨識服務拒絕了這次請求');
+    if (err instanceof Anthropic.AuthenticationError) throw new Error('辨識服務的金鑰失效，請通知 Nomo');
+    if (err instanceof Anthropic.APIConnectionError) { const e2 = new Error('offline'); e2.offline = true; throw e2; }
+    if (err instanceof Anthropic.APIError) throw new Error(`辨識服務回報錯誤（${err.status || '未知'}）`);
+    throw err;
+  }
+  if (res.stop_reason === 'refusal') throw new Error('這張圖片無法辨識，請改用手動輸入');
+  if (res.stop_reason === 'max_tokens') throw new Error('收據品項太多，請分段拍攝');
+  const text = res.content.filter(b => b.type === 'text').map(b => b.text).join('');
+  return JSON.parse(text);
+}
+// 把辨識結果填進表單
+function applyReceiptData(d) {
+  const set = (sel, v) => { const el = $(sel); if (el && v !== undefined && v !== null && v !== '') el.value = v; };
+  set('#m-title', d.merchant);
+  if (d.total) set('#m-amount', d.total);
+  const cur = String(d.currency || '').toUpperCase();
+  const sel = $('#m-currency');
+  if (sel && /^[A-Z]{3}$/.test(cur)) {
+    if (![...sel.options].some(o => o.value === cur)) sel.insertAdjacentHTML('beforeend', `<option value="${cur}">${cur}</option>`);
+    sel.value = cur;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) set('#m-date', d.date);
+  if (EXPENSE_CATS[d.category]) set('#m-category', d.category);
+  pendingReceiptItems = (d.items || []).map(x => ({ name: x.name || '', name_zh: x.name_zh || x.name || '', qty: x.qty || 1, unit_price: x.unit_price || 0, amount: x.amount || 0 }));
+  pendingReceiptInfo = { merchant: d.merchant || '', address: d.address || '', time: d.time || '', payment_method: d.payment_method || '', tax: d.tax || 0, tip: d.tip || 0, receipt_no: d.receipt_no || '' };
+  renderReceiptItems();
 }
 
 // ── 收據 OCR ───────────────────────────────
@@ -1586,6 +1895,20 @@ $('#receiptInput')?.addEventListener('change', async (e) => {
     const pv = $('#receiptPreview'); if (pv) { pv.hidden=false; pv.innerHTML = `<img src="${pendingReceiptThumb}" /><button type="button" id="rmReceipt">移除收據</button>`; pv.querySelector('#rmReceipt').addEventListener('click', ()=>{pendingReceiptThumb=null; pv.hidden=true; pv.innerHTML='';}); }
   } catch(err) { console.warn('thumb fail', err); }
 
+  // 有網路：Claude 讀出完整明細；離線才退回手機內辨識（只抓金額與日期）
+  if (navigator.onLine !== false) {
+    if (status) status.textContent = '🔍 正在讀取收據明細（約 10–20 秒）…';
+    try {
+      const d = await readReceiptWithClaude(file);
+      applyReceiptData(d);
+      if (status) status.textContent = `✅ 已帶入${d.merchant ? `「${d.merchant}」` : ''}總額 ${d.total || '—'} ${d.currency || ''}、${(d.items || []).length} 個品項，請確認`;
+      return;
+    } catch (err) {
+      console.error(err);
+      if (!err.offline) { if (status) status.textContent = `⚠ ${err.message || '辨識失敗'}`; return; }
+    }
+  }
+  if (status) status.textContent = '🔍 目前離線，改用手機內辨識（只抓金額與日期）…';
   try {
     const { data } = await Tesseract.recognize(file, 'eng+ita', {
       logger: m => { if (status && m.status === 'recognizing text') status.textContent = `🔍 辨識中… ${Math.round(m.progress*100)}%`; }

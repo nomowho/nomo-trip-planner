@@ -1,0 +1,20 @@
+name = "trip-receipt-proxy"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+# 所有辨識請求都交給固定在北美（enam）的 Durable Object 處理：
+# 1) 出口 IP 必在支援地區，避開 NOMI 踩過的行動網路 403
+# 2) 同一個物件負責每日額度計數，數字不會因 Worker 重啟而歸零
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "ReceiptRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ReceiptRelay"]
+
+[vars]
+ALLOWED_ORIGINS = "https://nomowho.github.io,http://localhost:8765"
+DAILY_LIMIT = "80"
+# 金鑰用 wrangler secret put ANTHROPIC_API_KEY 設定，不寫在這裡
