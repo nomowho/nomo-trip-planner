@@ -1440,3 +1440,143 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 .day-tabs-bar, .guide-filter-bar { top: var(--nav-h, 56px); }
 .day-card { scroll-margin-top: calc(var(--nav-h, 56px) + 60px); }
 @media (max-width: 600px) { .day-tabs-bar, .guide-filter-bar { top: var(--nav-h, 52px); } .day-card { scroll-margin-top: calc(var(--nav-h, 52px) + 56px); } }
+
+/* ── 路線總覽：頂部地圖鈕＋全螢幕整趟地圖 ───────── */
+.tab-map {
+  display: inline-grid; place-items: center; width: 34px; padding: 0; margin-left: 2px;
+  border: none; border-radius: var(--pill); background: none; color: var(--ink-2); cursor: pointer;
+}
+.tab-map .ico { width: 17px; height: 17px; }
+.tab-map:hover { color: var(--ink); background: var(--fill); }
+.tab-map:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+.trip-map { position: fixed; inset: 0; z-index: 76; background: var(--bg); }
+.tm-map { position: absolute; inset: 0; }
+.tm-head { max-width: 760px; margin: 0 auto; }
+.trip-map .leaflet-top { top: calc(max(10px, env(safe-area-inset-top)) + 64px); }
+.trip-map .leaflet-bottom { bottom: calc(126px + env(safe-area-inset-bottom)); }
+
+/* 主線與過夜點 */
+.tm-trunk { stroke: var(--ink); stroke-opacity: .55; fill: none; }
+.tm-pin {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--ink); color: var(--surface); border: 2.5px solid var(--surface);
+  font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25); transition: transform .2s, background .2s;
+}
+.tm-pin.is-sel { background: var(--clay); transform: scale(1.18); }
+/* 選了某天：其他天的路線淡出 */
+.tm-line { opacity: .9; }
+.has-sel .tm-line { opacity: .18; }
+.has-sel .tm-line.is-sel { opacity: 1; stroke-width: 5.5px; }
+
+/* 底部天數卡 */
+.tm-days {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 500;
+  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+  padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
+}
+.tm-days::-webkit-scrollbar { display: none; }
+.tm-day {
+  flex: 0 0 auto; width: 128px; scroll-snap-align: center; display: flex; flex-direction: column;
+  border-radius: 16px; overflow: hidden; background: var(--glass-strong);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: 0 4px 16px rgba(0,0,0,.14);
+  transition: width .2s;
+}
+.tm-day-main {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 11px 13px 10px;
+  border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; font-family: var(--sans);
+}
+.tm-day-n { font-family: var(--display); font-size: 10.5px; font-weight: 800; letter-spacing: .14em; color: var(--ink-2); }
+.tm-day-date { font-family: var(--display); font-size: 12px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.tm-day-place { margin-top: 3px; font-size: 14.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-day-go {
+  display: none; margin: 0 10px 10px; padding: 7px 10px; border: 0; border-radius: 10px; cursor: pointer;
+  background: var(--ink); color: var(--surface); font-family: var(--sans); font-size: 12px; font-weight: 700;
+}
+.tm-day.is-active { width: 150px; box-shadow: 0 0 0 2px var(--ink), 0 6px 20px rgba(0,0,0,.18); }
+.tm-day.is-active .tm-day-n { color: var(--clay); }
+.tm-day.is-active .tm-day-go { display: block; }
+.tm-day.no-geo { opacity: .6; }
+.tm-day.no-geo .tm-day-main { cursor: default; }
+.tm-day-main:focus-visible, .tm-day-go:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+@media (min-width: 900px) {
+  .tm-days { justify-content: safe center; padding-bottom: 20px; }
+  .tm-day { width: 136px; }
+}
+@media (min-width: 900px) { .tm-day { width: 124px; } .tm-day.is-active { width: 144px; } .tm-days { gap: 8px; } }
+
+/* 返回：純箭頭 */
+.back-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; margin-left: -6px; border-radius: 50%; color: var(--ink); }
+.back-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.back-btn:hover { opacity: 1; background: var(--fill); }
+
+/* 日期列：離選中那天超過兩天的只留日期數字 */
+.day-tab.is-far .dt-place { display: none; }
+.day-tab.is-far { padding-left: 9px; padding-right: 9px; }
+
+/* 封面：城市路線與日期改成小型 metadata（寬字距英文），左下一條極細資訊列 */
+.cover-cities {
+  font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase;
+  margin: 4px 0 6px; opacity: .9;
+}
+.cover-dates { font-family: var(--display); font-size: 11.5px; font-weight: 500; letter-spacing: .2em; opacity: .75; }
+.cover-strip {
+  margin: 18px 0 0; padding-top: 10px; border-top: .5px solid rgba(255,255,255,.35);
+  font-family: var(--display); font-size: 10px; font-weight: 600; letter-spacing: .32em; opacity: .7;
+  display: inline-block;
+}
+.cover-strip:empty { display: none; }
+@media (max-width: 600px) {
+  .cover-cities { font-size: 11px; letter-spacing: .16em; }
+  .cover-dates { font-size: 10.5px; letter-spacing: .16em; }
+  .cover-strip { font-size: 9.5px; letter-spacing: .26em; margin-top: 14px; }
+}
+
+/* ═══════════════════════════════════════════════
+   細節打磨（2026-09-27）
+   ═══════════════════════════════════════════════ */
+
+/* 封面資訊列移到主標上方：細線改在下面 */
+.cover-strip { margin: 0 0 14px; padding: 0 0 10px; border-top: 0; border-bottom: .5px solid rgba(255,255,255,.35); }
+@media (max-width: 600px) { .cover-strip { margin: 0 0 12px; } }
+
+/* 1. 按鈕：hover 只變背景／陰影／文字色，不位移；按壓縮放收斂到 .985 */
+.ghost-btn:active, .primary-btn:active, .add-btn:active, .quick-tile:active, .tab-map:active, .st-actions button:active { transform: scale(.985); }
+.trip-card:hover { transform: none; }
+body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover, body:not(.view-mode) .car-card:hover { transform: none; }
+
+/* 2. 所有數字等寬：時間軸時間、金額上下對齊 */
+body, input, select, textarea, button { font-variant-numeric: tabular-nums; }
+
+/* 3. 陰影只留給主卡（封面、每日卡、首頁行程卡、記帳總覽）；其餘靠留白＋極細暖灰線 */
+.flight-card, .hotel-card, .car-card, .quick-tiles, .cat-bars, .bal-row, .settle-tx, .guide-spot-card,
+#tab-expenses .pc, #tab-expenses .st-card {
+  box-shadow: 0 0 0 1px var(--hair);
+}
+body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover, body:not(.view-mode) .car-card:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 18%, var(--hair)); }
+#tab-expenses .pc, #tab-expenses .st-card { border-color: transparent; }
+#tab-expenses .pc:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--x-ink) 18%, var(--x-cardline)); }
+#tab-expenses .pc.is-active { box-shadow: 0 0 0 1.5px var(--x-ink); }
+.item:hover .main-card { box-shadow: none; border-color: color-mix(in srgb, var(--ink) 16%, var(--hair)); }
+
+/* 4. 每日英雄圖右上：⋯ 選單（折疊、編輯，刪除在最底） */
+.dh-menu { position: relative; }
+.dh-more .ico { fill: currentColor; stroke: none; width: 20px; height: 20px; }
+.dh-pop {
+  position: fixed; z-index: 90; min-width: 176px; padding: 6px;
+  display: flex; flex-direction: column; border-radius: 14px;
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: 0 0 0 .5px var(--hair), 0 12px 32px rgba(28,37,44,.16); color: var(--ink);
+}
+.dh-pop[hidden] { display: none; }
+.dh-pop button {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-radius: 9px;
+  background: none; color: var(--ink); font-family: var(--sans); font-size: 14px; font-weight: 500; text-align: left; cursor: pointer;
+}
+.dh-pop button .ico { width: 16px; height: 16px; color: var(--ink-2); }
+.dh-pop button:hover, .dh-pop button:focus-visible { background: var(--fill); outline: none; }
+.dh-pop .is-danger { color: var(--red); margin-top: 4px; position: relative; }
+.dh-pop .is-danger::before { content: ""; position: absolute; left: 8px; right: 8px; top: -3px; height: 1px; background: var(--hair); }
+.dh-pop .is-danger .ico { color: var(--red); }
+.view-mode .dh-pop .edit-only { display: none; }

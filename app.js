@@ -438,11 +438,10 @@ function renderCover() {
   $('#coverTitle').textContent = m.title || '';
   $('#coverCities').textContent = m.citiesText || '';
   $('#coverDates').textContent = dateRange(m.startDate, m.endDate) || '＋ 設定日期';
+  $('#coverStrip').textContent = coverStripText(m);
   $('#coverImg').style.backgroundImage = m.coverPhoto ? `url("${m.coverPhoto}")` : '';
-  // 首爾景點庫只在韓國行程出現
-  const isSeoul = /首爾|韓國|seoul|korea/i.test(`${m.title || ''} ${m.citiesText || ''}`);
-  $('.tab[data-tab="guide"]').hidden = !isSeoul;
-  if (!isSeoul && currentTab === 'guide') switchTab('itinerary');
+  $('#tripMapBtn').hidden = !tripMapDays().some(x => x.anchor);   // 沒有任何地點座標的行程不顯示路線總覽
+  if (currentTab === 'guide') switchTab('itinerary');
 }
 
 // ── 航班 ───────────────────────────────────
@@ -582,8 +581,21 @@ function renderDays() {
   }
   list.innerHTML = ids.map((id, idx) => renderDayCard(id, days[id], idx)).join('');
 
+  // ⋯ 選單：開在按鈕下方（用 fixed 定位，避免被卡片圓角裁切）
+  list.querySelectorAll('[data-day-menu]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const pop = b.nextElementSibling, open = pop.hidden;
+    closeDayMenus();
+    if (!open) return;
+    const r = b.getBoundingClientRect();
+    pop.hidden = false; b.setAttribute('aria-expanded', 'true');
+    pop.style.top = `${Math.round(r.bottom + 6)}px`;
+    pop.style.right = `${Math.round(innerWidth - r.right)}px`;
+    pop.querySelector('button:not([hidden])')?.focus({ preventScroll: true });
+  }));
   list.querySelectorAll('[data-day-toggle]').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
+    closeDayMenus();
     const id = b.dataset.dayToggle;
     const card = list.querySelector(`.day-card[data-day-id="${id}"]`);
     const body = card?.querySelector('.day-body');
@@ -602,8 +614,8 @@ function renderDays() {
     if (toMap && currentTrip.days[id]?.collapsed) tripsRef.child(currentTripId).child('days').child(id).child('collapsed').set(null);
     renderDays();
   }));
-  list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openDayEditor(b.dataset.dayEdit); }));
-  list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); deleteDay(b.dataset.dayDel); }));
+  list.querySelectorAll('[data-day-edit]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); closeDayMenus(); openDayEditor(b.dataset.dayEdit); }));
+  list.querySelectorAll('[data-day-del]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); closeDayMenus(); deleteDay(b.dataset.dayDel); }));
   list.querySelectorAll('.slot-add').forEach(b => b.addEventListener('click', () => openItemEditor(null, b.dataset.dayId, b.dataset.slotKey)));
   // 點卡片：編輯模式開編輯視窗；瀏覽模式展開／收起細節
   list.querySelectorAll('.item, .sub-item').forEach(el => el.addEventListener('click', e => {
@@ -727,9 +739,15 @@ function renderDayHero(id, d, idx, collapsed, count, stay) {
           <button class="${mapDays.has(id) && !isNarrow() ? '' : 'on'}" data-day-mode="list" data-day="${id}" title="時間軸" aria-label="時間軸">${icon('list')}</button>
           <button class="${mapDays.has(id) && !isNarrow() ? 'on' : ''}" data-day-mode="map" data-day="${id}" title="路線地圖" aria-label="路線地圖">${icon('map')}</button>
         </div>` : ''}
-        <button class="dh-icon edit-only" data-day-edit="${id}" title="編輯這一天" aria-label="編輯這一天">${icon('pencil')}</button>
-        <button class="dh-icon del edit-only" data-day-del="${id}" title="刪除這一天" aria-label="刪除這一天">${icon('trash-2')}</button>
-        <button class="dh-icon dh-toggle" data-day-toggle="${id}" aria-label="展開／收起">${icon('chevron-down')}</button>
+        <!-- 折疊／編輯／刪除收進 ⋯，刪除固定在最下面 -->
+        <div class="dh-menu">
+          <button class="dh-icon dh-more" data-day-menu="${id}" aria-haspopup="menu" aria-expanded="false" title="這一天的操作" aria-label="這一天的操作"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+          <div class="dh-pop" role="menu" hidden>
+            <button role="menuitem" data-day-toggle="${id}">${icon('chevron-down')}<span>${collapsed ? '展開這一天' : '收起這一天'}</span></button>
+            <button role="menuitem" class="edit-only" data-day-edit="${id}">${icon('pencil')}<span>編輯這一天</span></button>
+            <button role="menuitem" class="edit-only is-danger" data-day-del="${id}">${icon('trash-2')}<span>刪除這一天</span></button>
+          </div>
+        </div>
       </div>
     </header>`;
 }
@@ -867,20 +885,22 @@ function focusPad(map) {
   if (map.getContainer().id === 'mvMap') return { paddingTopLeft: [24, 96], paddingBottomRight: [24, Math.round(innerHeight * drawerFrac) + 24] };
   return { padding: [40, 40] };
 }
-function buildDayMap(el, dayId, onSelect) {
-  const d = currentTrip.days[dayId];
-  const items = dayItems(d).filter(it => !it.planB);
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const map = L.map(el, { zoomControl: true, scrollWheelZoom: !isNarrow(), attributionControl: true });
-  // 底圖：淺色用 Esri 地形圖（等高線、步道、湖泊、道路），用 CSS 降低彩度；深色用 Esri 深灰底＋地形陰影
+// 底圖：淺色用 Esri 地形圖（等高線、步道、湖泊、道路），用 CSS 降低彩度；深色用 Esri 深灰底＋地形陰影
+function addBaseTiles(map) {
   const esri = (name) => `https://services.arcgisonline.com/arcgis/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`;
-  if (dark) {
+  if (matchMedia('(prefers-color-scheme: dark)').matches) {
     L.tileLayer(esri('Canvas/World_Dark_Gray_Base'), { maxZoom: 16, attribution: 'Tiles © Esri' }).addTo(map);
     L.tileLayer(esri('Elevation/World_Hillshade'), { maxZoom: 16, opacity: .2, className: 'hillshade' }).addTo(map);
     L.tileLayer(esri('Canvas/World_Dark_Gray_Reference'), { maxZoom: 16 }).addTo(map);
   } else {
     L.tileLayer(esri('World_Topo_Map'), { maxZoom: 18, className: 'topo-muted', attribution: 'Tiles © Esri · OpenStreetMap contributors' }).addTo(map);
   }
+}
+function buildDayMap(el, dayId, onSelect) {
+  const d = currentTrip.days[dayId];
+  const items = dayItems(d).filter(it => !it.planB);
+  const map = L.map(el, { zoomControl: true, scrollWheelZoom: !isNarrow(), attributionControl: true });
+  addBaseTiles(map);
 
   const layers = {}, bounds = L.latLngBounds([]), used = [];
   let n = 0;
@@ -1127,9 +1147,33 @@ function renderDayNav() {
         <span class="dt-num">${isNaN(dt) ? i + 1 : dt.getDate()}</span><span class="dt-place">${escapeHtml(shortOf(d, i))}</span></button>`;
     }).join('');
   updateActiveDayTab();
+  markNearDayTabs();
 }
 // 捲動時，底線跟著目前在看的那一天
 let spyLockUntil = 0;   // 點分頁跳轉時先鎖住，避免平滑捲動途中底線亂跳
+// 封面左下資訊列：ITALY · 12 DAYS · OCT 2026（國家取自行程名稱／城市；天數優先用標題的「N 日」）
+function coverStripText(m) {
+  const id = tripIdentity(m);
+  const t = String(m.title || '').match(/(\d+)\s*[日天]/);
+  const s = m.startDate ? parseDate(m.startDate) : null, e = m.endDate ? parseDate(m.endDate) : null;
+  const days = t ? +t[1] : (s && e) ? Math.round((e - s) / 864e5) + 1 : Object.keys(currentTrip?.days || {}).length;
+  const month = s && !isNaN(s) ? s.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase() : '';
+  return [id.country.toUpperCase(), days ? `${days} DAYS` : '', month].filter(Boolean).join(' · ');
+}
+// 日期列：只保留選中那天與前後各兩天的城市名，其餘只顯示日期數字（仍可橫向捲動）
+function markNearDayTabs() {
+  const tabs = $$('.day-tab[data-jump]:not([data-jump="top"])');
+  const act = tabs.findIndex(t => t.classList.contains('active'));
+  const at = act < 0 ? 0 : act;
+  tabs.forEach((t, i) => t.classList.toggle('is-far', Math.abs(i - at) > 2));
+}
+function closeDayMenus() {
+  $$('.dh-pop').forEach(p => { p.hidden = true; });
+  $$('[data-day-menu]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+document.addEventListener('click', e => { if (!e.target.closest('.dh-menu')) closeDayMenus(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDayMenus(); });
+window.addEventListener('scroll', () => { if (document.querySelector('.dh-pop:not([hidden])')) closeDayMenus(); }, { passive: true });
 function setActiveDayTab(key) {
   const prev = $('.day-tab.active');
   if (prev?.dataset.jump === key) return;
@@ -1137,6 +1181,7 @@ function setActiveDayTab(key) {
   const tab = $(`.day-tab[data-jump="${key}"]`);
   if (!tab) return;
   tab.classList.add('active');
+  markNearDayTabs();
   const nav = $('#dayNav');
   nav.scrollTo({ left: Math.max(0, tab.offsetLeft - nav.clientWidth / 2 + tab.clientWidth / 2), behavior: 'smooth' });
 }
@@ -2182,3 +2227,138 @@ window.__debugShowExpenses = () => { switchTab('expenses'); };
   if ('ResizeObserver' in window) new ResizeObserver(sync).observe(nav);
   window.addEventListener('orientationchange', () => setTimeout(sync, 300));
 })();
+
+// ── 路線總覽：整趟行程一張地圖 ───────────────────
+// 每天的過夜點＝當天「住宿」圖釘，沒有就用那天的城市座標；依日期用虛線串成主線，
+// 有詳細路線的天把開車／健行／纜車也畫上。底部天數卡點一下就打亮那天
+let tripMap = null;   // { map, days, sel }
+const kmOf = (pts) => {
+  let m = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const [a, b] = [pts[i - 1], pts[i]], r = Math.PI / 180;
+    const x = Math.sin((b[0] - a[0]) * r / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin((b[1] - a[1]) * r / 2) ** 2;
+    m += 12742 * Math.asin(Math.sqrt(x));
+  }
+  return m;
+};
+function tripMapDays() {
+  return Object.entries(currentTrip.days || {})
+    .sort((a, b) => (a[1].date || '').localeCompare(b[1].date || ''))
+    .map(([id, d], i) => {
+      const items = dayItems(d).filter(it => !it.planB);
+      const pins = items.filter(it => it.lat && it.lng && it.pin);
+      const stay = pins.filter(p => p.pin === 'stay').pop();
+      const anchor = stay ? [stay.lat, stay.lng] : (d.lat && d.lng) ? [d.lat, d.lng] : pins.length ? [pins.at(-1).lat, pins.at(-1).lng] : null;
+      const paths = items.filter(it => it.path).map(it => ({ it, pts: decodePath(it.path), mode: it.mode || 'drive' }));
+      return { id, d, n: i + 1, anchor, paths, place: d.short || String(d.city || '').split('→').pop().trim() };
+    });
+}
+function openTripMap() {
+  if (!currentTrip) return;
+  const days = tripMapDays();
+  let drive = 0, hike = 0;
+  days.forEach(x => x.paths.forEach(p => { const k = kmOf(p.pts); if (p.mode === 'drive') drive += k; else if (p.mode === 'hike' || p.mode === 'walk') hike += k; }));
+  const m = currentTrip.meta || {};
+  $('#tmTitle').textContent = m.title || '路線總覽';
+  $('#tmMeta').textContent = ['路線總覽', `${days.length} 天`, drive ? `開車約 ${Math.round(drive)} km` : '', hike ? `健行約 ${Math.round(hike)} km` : ''].filter(Boolean).join(' · ');
+  $('#tmDays').innerHTML = days.map(x => {
+    const dt = parseDate(x.d.date);
+    return `<div class="tm-day ${x.anchor ? '' : 'no-geo'}" data-day="${x.id}">
+      <button type="button" class="tm-day-main" aria-label="Day ${x.n} ${escapeHtml(x.place)}">
+        <span class="tm-day-n">DAY ${String(x.n).padStart(2, '0')}</span>
+        <span class="tm-day-date">${isNaN(dt) ? '' : `${dt.getMonth() + 1}/${dt.getDate()}`}</span>
+        <span class="tm-day-place">${escapeHtml(x.place || '—')}</span>
+      </button>
+      <button type="button" class="tm-day-go">看這天行程 →</button>
+    </div>`;
+  }).join('');
+  $('#tripMap').hidden = false;
+  document.body.style.overflow = 'hidden';
+  loadLeaflet().then(() => {
+    if (tripMap) tripMap.map.remove();
+    const map = L.map($('#tmMap'), { zoomControl: true, attributionControl: true, zoomSnap: .25 });   // 細刻度縮放，整趟路線剛好塞滿畫面
+    addBaseTiles(map);
+    const all = L.latLngBounds([]);
+    days.forEach(x => {
+      x.lines = x.paths.map(p => {
+        const line = L.polyline(p.pts, { className: `route route-${p.mode} tm-line`, weight: p.mode === 'drive' ? 4 : 3, dashArray: (p.mode === 'hike' || p.mode === 'walk') ? '1 7' : null, lineCap: 'round' }).addTo(map);
+        line.on('click', () => selectTripDay(x.id));
+        p.pts.forEach(pt => all.extend(pt));
+        return line;
+      });
+    });
+    // 主線：依日期串起過夜點（同一地點連住就合併）
+    const stops = [];
+    days.filter(x => x.anchor).forEach(x => {
+      const last = stops.at(-1);
+      if (last && L.latLng(last.ll).distanceTo(x.anchor) < 800) last.days.push(x);
+      else stops.push({ ll: x.anchor, days: [x] });
+    });
+    if (stops.length > 1) L.polyline(stops.map(s => s.ll), { className: 'tm-trunk', weight: 2, dashArray: '6 7', interactive: false }).addTo(map);
+    stops.forEach(s => {
+      const a = s.days[0].n, b = s.days.at(-1).n;
+      s.marker = L.marker(s.ll, {
+        icon: L.divIcon({ className: 'pin-wrap', html: `<span class="tm-pin">${a === b ? a : `${a}–${b}`}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] }),
+        title: s.days.map(x => `Day ${x.n} ${x.place}`).join('、'), keyboard: true, riseOnHover: true
+      }).addTo(map);
+      s.marker.on('click', () => selectTripDay(s.days[0].id));
+      s.days.forEach(x => { x.stop = s; });
+      all.extend(s.ll);
+    });
+    tripMap = { map, days, all, sel: null };
+    if (all.isValid()) map.fitBounds(all, tripMapPad());
+    setTimeout(() => map.invalidateSize(), 50);
+  }).catch(e => toast(e.message));
+}
+function tripMapPad() {
+  const narrow = isNarrow();
+  return { paddingTopLeft: [28, narrow ? 96 : 110], paddingBottomRight: [28, narrow ? 150 : 160], maxZoom: 13 };
+}
+function selectTripDay(id) {
+  if (!tripMap) return;
+  const x = tripMap.days.find(v => v.id === id);
+  if (!x) return;
+  const again = tripMap.sel === id;
+  tripMap.sel = again ? null : id;
+  $('#tmMap').classList.toggle('has-sel', !again);
+  tripMap.days.forEach(v => {
+    v.lines.forEach(l => l.getElement()?.classList.toggle('is-sel', !again && v.id === id));
+    v.stop?.marker.getElement()?.querySelector('.tm-pin')?.classList.toggle('is-sel', !again && v.stop === x.stop);
+  });
+  $$('#tmDays .tm-day').forEach(c => c.classList.toggle('is-active', !again && c.dataset.day === id));
+  if (again) { tripMap.map.flyToBounds(tripMap.all, { ...tripMapPad(), duration: .6 }); return; }
+  const card = $(`#tmDays .tm-day[data-day="${id}"]`);
+  card?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  const b = L.latLngBounds([]);
+  x.lines.forEach(l => b.extend(l.getBounds()));
+  if (x.anchor) b.extend(x.anchor);
+  if (b.isValid()) tripMap.map.flyToBounds(b, { ...tripMapPad(), maxZoom: x.lines.length ? 13 : 11, duration: .6 });
+}
+function closeTripMap() {
+  $('#tripMap').hidden = true;
+  document.body.style.overflow = '';
+  if (tripMap) { tripMap.map.remove(); tripMap = null; }
+}
+function initTripMap() {
+  const btn = $('#tripMapBtn');
+  if (!btn) return;
+  btn.innerHTML = icon('map');
+  btn.addEventListener('click', openTripMap);
+  $('#tmClose').addEventListener('click', closeTripMap);
+  $('#tmDays').addEventListener('click', e => {
+    const card = e.target.closest('.tm-day'); if (!card) return;
+    if (e.target.closest('.tm-day-go')) {
+      const id = card.dataset.day;
+      closeTripMap();
+      if (currentTab !== 'itinerary') switchTab('itinerary');
+      setTimeout(() => {
+        setActiveDayTab(id); spyLockUntil = Date.now() + 4000;
+        $(`.day-card[data-day-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+      return;
+    }
+    if (!card.classList.contains('no-geo')) selectTripDay(card.dataset.day);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#tripMap').hidden && $('#modal').hidden) closeTripMap(); });
+}
+initTripMap();
