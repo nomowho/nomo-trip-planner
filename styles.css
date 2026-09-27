@@ -1084,3 +1084,22 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 .dh-day { opacity: .75; }
 .day-hero.has-photo .dh-top { padding-right: 190px; }
 @media (max-width: 600px) { .day-hero.has-photo .dh-top, .dh-top { padding-right: 150px; } }
+/* 標題卡右上：全部改成圖示，不再和日期重疊 */
+.dh-mode button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; }
+.dh-mode button .ico { width: 17px; height: 17px; }
+.dh-mode button.on { box-shadow: none; background: rgba(127,127,127,.2); }
+.day-hero.has-photo .dh-mode button.on { background: rgba(255,255,255,.24); color: #fff; }
+.dh-actions { gap: 2px; align-items: center; }
+.dh-icon.del { color: var(--red); opacity: 0; }
+.day-hero:hover .dh-icon.del, .dh-icon.del:focus-visible { opacity: .9; }
+.day-hero.has-photo .dh-icon.del { color: #ffcfc2; }
+@media (hover: none) { .dh-icon.del { opacity: .9; } }
+.dh-top, .day-hero.has-photo .dh-top { padding-right: 180px; }
+.view-mode .dh-top, .view-mode .day-hero.has-photo .dh-top { padding-right: 110px; }
+@media (max-width: 600px) {
+  .dh-actions { top: 10px; right: 8px; }
+  .dh-mode button, .dh-icon { width: 28px; height: 28px; }
+  .dh-top, .day-hero.has-photo .dh-top { padding-right: 150px; }
+  .view-mode .dh-top, .view-mode .day-hero.has-photo .dh-top { padding-right: 96px; }
+}
+.dh-mode button.on, .day-hero.has-photo .dh-mode button.on { border-radius: 50%; }

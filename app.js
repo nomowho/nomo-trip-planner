@@ -711,11 +711,11 @@ function renderDayHero(id, d, idx, collapsed, count, stay) {
       ${collapsed && !d.theme ? `<p class="dh-summary">${count ? `${count} 個行程` : '尚無行程'}</p>` : ''}
       <div class="dh-actions">
         ${dayHasGeo(d) ? `<div class="dh-mode" role="group" aria-label="閱讀方式">
-          <button class="${mapDays.has(id) && !isNarrow() ? '' : 'on'}" data-day-mode="list" data-day="${id}">時間軸</button>
-          <button class="${mapDays.has(id) && !isNarrow() ? 'on' : ''}" data-day-mode="map" data-day="${id}">${icon('map-pin')}地圖</button>
+          <button class="${mapDays.has(id) && !isNarrow() ? '' : 'on'}" data-day-mode="list" data-day="${id}" title="時間軸" aria-label="時間軸">${icon('list')}</button>
+          <button class="${mapDays.has(id) && !isNarrow() ? 'on' : ''}" data-day-mode="map" data-day="${id}" title="路線地圖" aria-label="路線地圖">${icon('map')}</button>
         </div>` : ''}
-        <button class="dh-link edit-only" data-day-edit="${id}">編輯</button>
-        <button class="dh-link del edit-only" data-day-del="${id}">刪除</button>
+        <button class="dh-icon edit-only" data-day-edit="${id}" title="編輯這一天" aria-label="編輯這一天">${icon('pencil')}</button>
+        <button class="dh-icon del edit-only" data-day-del="${id}" title="刪除這一天" aria-label="刪除這一天">${icon('trash-2')}</button>
         <button class="dh-icon dh-toggle" data-day-toggle="${id}" aria-label="展開／收起">${icon('chevron-down')}</button>
       </div>
     </header>`;
@@ -1180,7 +1180,10 @@ function addDay() {
   toast('已新增一天');
 }
 function deleteDay(id) {
-  if (!confirm('確定刪除這一天？')) return;
+  // 提醒寫清楚刪的是哪一天、會一起刪掉幾個行程
+  const d = currentTrip.days?.[id] || {};
+  const n = dayItems(d).length;
+  if (!confirm(`確定刪除 ${fmtDate(d.date) || '這一天'}「${d.theme || d.city || '未命名'}」？\n這天的 ${n} 個行程會一起刪除，無法復原。`)) return;
   tripsRef.child(currentTripId).child('days').child(id).remove(); touchTrip(); toast('已刪除');
 }
 function openDayEditor(id) {
