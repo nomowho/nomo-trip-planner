@@ -3,7 +3,7 @@
    網路優先（拿得到就用最新版），逾時或斷線才用快取；
    行程資料本身由 app.js 存在 localStorage，這裡只快取網頁與函式庫。
    ───────────────────────────────────────────── */
-const CACHE = 'trip-planner-v1';
+const CACHE = 'trip-planner-v2';
 const TIMEOUT_MS = 4000;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -21,7 +21,7 @@ self.addEventListener('fetch', e => {
   if (/firebaseio\.com|firebasedatabase\.app/.test(url.hostname)) return;
   // 只快取網頁本身、CDN 函式庫與字型
   const cacheable = url.origin === location.origin ||
-    /gstatic\.com|googleapis\.com|jsdelivr\.net/.test(url.hostname);
+    /gstatic\.com|googleapis\.com|jsdelivr\.net|cdnjs\.cloudflare\.com/.test(url.hostname);
   if (!cacheable) return;
   e.respondWith(networkFirst(req));
 });

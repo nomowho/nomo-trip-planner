@@ -3,15 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<meta name="theme-color" content="#1c1916" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#121619" media="(prefers-color-scheme: dark)" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="mobile-web-app-capable" content="yes" />
 <title>Trip Planner — 旅行行程共編</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23627b6d%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m8 3 4 8 5-5 5 15H2L8 3z%27/%3E%3C/svg%3E" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=11" />
+<!-- 英文 Manrope、中文思源黑體；每日主題用思源宋體 -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=38" />
 </head>
 <body>
 
@@ -25,7 +29,6 @@
   </nav>
 
   <header class="home-hero">
-    <p class="home-eyebrow">MY TRIPS · 我的旅程</p>
     <h1>我出去一下就回來</h1>
     <p class="home-sub">每一趟旅行的行程、航班、住宿與記帳，都收在這裡。</p>
   </header>
@@ -46,13 +49,13 @@
   <nav class="topnav">
     <button class="back-btn" id="backBtn">←&nbsp;我的旅程</button>
     <div class="tabs">
-      <button class="tab active" data-tab="itinerary">📋 行程</button>
-      <button class="tab" data-tab="expenses">💰 記帳</button>
-      <button class="tab" data-tab="guide">🗺️ 首爾</button>
+      <button class="tab active" data-tab="itinerary">行程</button>
+      <button class="tab" data-tab="expenses">記帳</button>
+      <button class="tab" data-tab="guide">首爾</button>
     </div>
     <div class="nav-right">
       <span id="syncDot" class="sync-dot" title="連線中"></span>
-      <button class="ghost-btn edit-toggle" id="editModeBtn">✏️ 編輯</button>
+      <button class="ghost-btn edit-toggle" id="editModeBtn">編輯</button>
       <button class="ghost-btn edit-only" id="exportBtn">匯出</button>
     </div>
   </nav>
@@ -60,11 +63,16 @@
 
   <!-- ===== TAB：行程 ===== -->
   <div id="tab-itinerary" class="tab-panel">
+    <!-- 天數分頁：固定在頂部，隨時跳到任一天 -->
+    <div class="day-tabs-bar">
+      <nav class="day-tabs" id="dayNav" aria-label="選擇天數"></nav>
+      <button class="day-tabs-add edit-only" id="dayTabsAdd" title="新增一天" aria-label="新增一天">＋</button>
+    </div>
+
     <!-- 封面 -->
     <header class="cover" id="cover">
       <div class="cover-img" id="coverImg"></div>
       <div class="cover-overlay">
-        <p class="cover-eyebrow" id="coverEyebrow">A JOURNEY · 旅行誌</p>
         <h1 class="cover-title" id="coverTitle" spellcheck="false" data-placeholder="點此編輯行程名稱"></h1>
         <p class="cover-cities" id="coverCities" spellcheck="false" data-placeholder="城市路線"></p>
         <p class="cover-dates" id="coverDates"></p>
@@ -72,72 +80,60 @@
       <button class="cover-edit-btn edit-only" id="coverEditBtn">編輯封面</button>
     </header>
 
-    <!-- 今日速覽 -->
-    <section class="today-card" id="todayCard" hidden></section>
+    <!-- 航班／住宿／交通：極簡圖示入口，點開看詳細 -->
+    <nav class="quick-tiles" aria-label="航班、住宿、交通">
+      <button class="quick-tile" data-sheet="flights" style="--c: var(--c-transit)">
+        <span class="qt-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg></span>
+        <span class="qt-label">Flights</span>
+        <span class="qt-count" id="qtFlights"></span>
+      </button>
+      <button class="quick-tile" data-sheet="stays" style="--c: var(--c-hotel)">
+        <span class="qt-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M12 4v6"/><path d="M2 18h20"/></svg></span>
+        <span class="qt-label">Stays</span>
+        <span class="qt-count" id="qtStays"></span>
+      </button>
+      <button class="quick-tile" data-sheet="transport" style="--c: var(--c-restaurant)">
+        <span class="qt-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span>
+        <span class="qt-label">Transport</span>
+        <span class="qt-count" id="qtTransport"></span>
+      </button>
+    </nav>
 
-    <!-- 航班 -->
-    <section class="section">
-      <div class="section-head">
-        <div class="section-head-title">
-          <button class="section-toggle" data-target="flightBody" title="展開 / 收起">▶</button>
-          <h2>FLIGHTS · 航班</h2>
-        </div>
-        <button class="add-btn" data-add="flight">+ 新增航班</button>
-      </div>
-      <div id="flightBody" hidden>
-        <div class="flights-grid" id="flightsGrid"></div>
-      </div>
-    </section>
 
-    <!-- 住宿 -->
-    <section class="section">
-      <div class="section-head">
-        <div class="section-head-title">
-          <button class="section-toggle" data-target="hotelBody" title="展開 / 收起">▶</button>
-          <h2>STAYS · 住宿</h2>
+    <!-- 詳細面板：航班／住宿／交通 -->
+    <div class="info-sheet" id="infoSheet" hidden>
+      <div class="info-sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <header>
+          <h3 id="sheetTitle"></h3>
+          <button class="modal-close" id="sheetClose" aria-label="關閉">×</button>
+        </header>
+        <div class="info-sheet-body">
+          <section class="sheet-group" data-group="flights">
+            <div class="sheet-group-head"><span></span><button class="add-btn" data-add="flight">＋ 新增航班</button></div>
+            <div class="flights-grid" id="flightsGrid"></div>
+          </section>
+          <section class="sheet-group" data-group="stays">
+            <div class="sheet-group-head"><span></span><button class="add-btn" data-add="hotel">＋ 新增住宿</button></div>
+            <div class="hotels-grid" id="hotelsGrid"></div>
+          </section>
+          <section class="sheet-group" data-group="transport">
+            <div class="sheet-group-head"><h4>租車</h4><button class="add-btn" data-add="car">＋ 新增租車</button></div>
+            <div class="cars-grid" id="carsGrid"></div>
+          </section>
+          <section class="sheet-group" data-group="transport">
+            <div class="sheet-group-head"><h4>火車</h4><button class="add-btn" data-add="train">＋ 新增火車</button></div>
+            <div class="cars-grid" id="trainsGrid"></div>
+          </section>
         </div>
-        <button class="add-btn" data-add="hotel">+ 新增住宿</button>
       </div>
-      <div id="hotelBody" hidden>
-        <div class="hotels-grid" id="hotelsGrid"></div>
-      </div>
-    </section>
-
-    <!-- 租車 -->
-    <section class="section">
-      <div class="section-head">
-        <div class="section-head-title">
-          <button class="section-toggle" data-target="carBody" title="展開 / 收起">▶</button>
-          <h2>RENTAL · 租車</h2>
-        </div>
-        <button class="add-btn" data-add="car">+ 新增租車</button>
-      </div>
-      <div id="carBody" hidden>
-        <div class="cars-grid" id="carsGrid"></div>
-      </div>
-    </section>
-
-    <!-- 火車 -->
-    <section class="section">
-      <div class="section-head">
-        <div class="section-head-title">
-          <button class="section-toggle" data-target="trainBody" title="展開 / 收起">▶</button>
-          <h2>TRAINS · 火車</h2>
-        </div>
-        <button class="add-btn" data-add="train">+ 新增火車</button>
-      </div>
-      <div id="trainBody" hidden>
-        <div class="cars-grid" id="trainsGrid"></div>
-      </div>
-    </section>
+    </div>
 
     <!-- 每日行程 -->
     <section class="section section-days">
       <div class="section-head">
-        <h2>ITINERARY · 每日行程</h2>
+        <h2>每日行程</h2>
         <button class="add-btn" id="addDayBtn">+ 新增一天</button>
       </div>
-      <nav class="day-nav" id="dayNav"></nav>
       <div class="days-list" id="daysList"></div>
     </section>
 
@@ -149,7 +145,7 @@
   <!-- ===== TAB：首爾景點庫 ===== -->
   <div id="tab-guide" class="tab-panel" hidden>
     <div class="guide-hero">
-      <p class="guide-eyebrow">SEOUL GUIDE · 首爾景點庫</p>
+      <p class="guide-eyebrow">首爾景點庫</p>
       <h2>景點 · 咖啡廳 · 餐廳 · 購物</h2>
       <p>點「+ 加入行程」可直接選日期與時間段寫入行程</p>
     </div>
@@ -185,14 +181,14 @@
       </div>
 
       <div class="section-head">
-        <h2>EXPENSES · 支出明細</h2>
+        <h2>支出明細</h2>
         <button class="add-btn" id="addExpenseBtn">+ 記一筆</button>
       </div>
       <div class="expense-list" id="expenseList"></div>
 
       <!-- 分帳結算 -->
       <div class="section-head" style="margin-top:36px;">
-        <h2>SETTLEMENT · 分帳結算</h2>
+        <h2>分帳結算</h2>
       </div>
       <div class="settlement" id="settlement"></div>
     </section>
@@ -202,6 +198,19 @@
     <p>Nomo Trip Planner · 拖曳行程可跨時段／跨日 · 記帳支援多幣別換算與均分結算</p>
   </footer>
 </main>
+
+<!-- ───────── 手機：全螢幕路線地圖 ───────── -->
+<div class="map-view" id="mapView" hidden>
+  <div class="mv-map" id="mvMap"></div>
+  <header class="mv-head">
+    <div class="mv-head-text"><span id="mvDate"></span><h3 id="mvTitle"></h3></div>
+    <button class="mv-close" id="mvClose" aria-label="關閉地圖">×</button>
+  </header>
+  <section class="mv-drawer" id="mvDrawer" aria-label="當天行程">
+    <div class="mv-handle" id="mvHandle" role="button" aria-label="拖曳或點一下展開行程"><span></span></div>
+    <div class="mv-list tl-scroll" id="mvList"></div>
+  </section>
+</div>
 
 <!-- ───────── 通用編輯彈窗 ───────── -->
 <div id="modal" class="modal" hidden>
@@ -232,6 +241,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="guide-data.js?v=8"></script>
-<script src="app.js?v=11"></script>
+<script src="icons.js?v=1"></script>
+<script src="app.js?v=38"></script>
 </body>
 </html>
