@@ -1103,3 +1103,11 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
   .view-mode .dh-top, .view-mode .day-hero.has-photo .dh-top { padding-right: 96px; }
 }
 .dh-mode button.on, .day-hero.has-photo .dh-mode button.on { border-radius: 50%; }
+/* 編輯視窗：欄位永遠不超出螢幕（長選項文字只截斷，不把整個視窗撐寬） */
+.modal-body { overflow-x: hidden; }
+.field { min-width: 0; }
+.field input, .field textarea, .field select { width: 100%; min-width: 0; max-width: 100%; }
+.field select { text-overflow: ellipsis; }
+.field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 600px) { .field-row { grid-template-columns: minmax(0, 1fr); } }
+.modal-body, .info-sheet-body, .mv-list { touch-action: pan-y; overscroll-behavior-x: none; }
