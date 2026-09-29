@@ -559,6 +559,10 @@ const TIP_META = {
   food:    { icon: 'utensils',       label: '餐飲' },
   info:    { icon: 'info',           label: '提醒' }
 };
+// 訂位狀態：booked＝已訂好（可附訂位代號）、pending＝已詢問等回覆
+const bookingBadge = (it) => it.booking === 'booked'
+  ? `<span class="bk-badge is-booked" title="${escapeHtml(it.bookingRef ? '訂位代號 ' + it.bookingRef : '已訂位')}">${icon('calendar-check')}已訂${it.bookingRef ? `<em>${escapeHtml(it.bookingRef)}</em>` : ''}</span>`
+  : it.booking === 'pending' ? `<span class="bk-badge is-pending">${icon('clock')}待確認</span>` : '';
 const openCards = new Set();   // 展開中的主行程卡（重畫後保持展開）
 // 小提醒 ⇄ 編輯框文字（一行一個「停車：…」）
 const tipsToText = (tips) => (Array.isArray(tips) ? tips : []).map(t => `${(TIP_META[t.kind] || TIP_META.info).label}：${t.text}`).join('\n');
@@ -774,7 +778,7 @@ function renderTimelineRow(dayId, it, children) {
         <div class="tl-card move-card">
           <span class="move-ico">${icon(meta.icon)}</span>
           <div class="move-main">
-            <div class="move-title">${escapeHtml(it.title || '未命名')}</div>
+            <div class="move-title">${escapeHtml(it.title || '未命名')}${bookingBadge(it)}</div>
             ${it.distance ? `<div class="move-meta">${escapeHtml(it.distance)}</div>` : ''}
             ${it.note ? `<div class="move-note">${linkify(it.note)}</div>` : ''}
             ${(Array.isArray(it.tips) ? it.tips.filter(t => t && t.text) : []).map(t => { const m = TIP_META[t.kind] || TIP_META.info; return `<p class="move-tip">${icon(m.icon)}<span><b>${m.label}</b>　${linkify(t.text)}</span></p>`; }).join('')}
@@ -800,7 +804,7 @@ function renderTimelineRow(dayId, it, children) {
   const subs = children.sort((a, b) => (splitTime(a.time).start || '99').localeCompare(splitTime(b.time).start || '99')).map(c => {
     const cm = TYPE_META[c.type] || TYPE_META.spot;
     return `<div class="sub-item" data-item-id="${c.id}" data-day-id="${dayId}" data-slot-key="${c.slot}">
-      <span class="sub-time">${escapeHtml(splitTime(c.time).start || c.time || '')}</span>${icon(cm.icon)}<span class="sub-title">${escapeHtml(c.title || '')}</span></div>`;
+      <span class="sub-time">${escapeHtml(splitTime(c.time).start || c.time || '')}</span>${icon(cm.icon)}<span class="sub-title">${escapeHtml(c.title || '')}${bookingBadge(c)}</span></div>`;
   }).join('');
   const subDetails = children.filter(c => c.note || c.address).map(c =>
     `<p class="mc-note"><b>${escapeHtml(c.title || '')}</b>　${c.note ? linkify(c.note) : ''}${c.address ? ` <a href="${mapUrl(c.address)}" target="_blank" rel="noopener">地圖</a>` : ''}</p>`).join('');
@@ -814,7 +818,7 @@ function renderTimelineRow(dayId, it, children) {
           <div class="mc-head">
             <span class="mc-ico">${icon(meta.icon)}</span>
             <div class="mc-titles">
-              <div class="mc-title">${escapeHtml(it.title || '未命名')}</div>
+              <div class="mc-title">${escapeHtml(it.title || '未命名')}${bookingBadge(it)}</div>
             </div>
             ${hasDetail ? `<span class="mc-chev">${icon('chevron-down')}</span>` : ''}
           </div>
@@ -1303,6 +1307,14 @@ function openItemEditor(itemId, dayId, slotKey) {
     </div>
     <div class="field"><label>小提醒（一行一個，例：停車：Auronzo 收費 €30）</label>
       <textarea id="m-tips" rows="3" placeholder="停車：…&#10;預約：…&#10;拍攝：…&#10;天候：…">${escapeHtml(tipsToText(ex.tips))}</textarea></div>
+    <div class="field-row">
+      <div class="field"><label>訂位狀態</label><select id="m-booking">
+        <option value="">不用訂／還沒處理</option>
+        <option value="pending" ${ex.booking === 'pending' ? 'selected' : ''}>待確認（已詢問）</option>
+        <option value="booked" ${ex.booking === 'booked' ? 'selected' : ''}>已訂位</option>
+      </select></div>
+      <div class="field"><label>訂位代號</label><input id="m-bookingRef" value="${escapeHtml(ex.bookingRef || '')}" placeholder="例：P26244234" /></div>
+    </div>
     ${parentOpts ? `<div class="field"><label>收進哪張主卡（子行程）</label><select id="m-parent"><option value="">不收（獨立一張）</option>${parentOpts}</select></div>` : ''}
     <label class="check-row"><input type="checkbox" id="m-planb" ${ex.planB ? 'checked' : ''} /> 這是 Plan B（雨天／道路關閉替代方案）</label>
     ${allDays.length ? `<div class="move-to-row">
@@ -1318,6 +1330,7 @@ function openItemEditor(itemId, dayId, slotKey) {
         budget:$('#m-budget').value.trim(), address:$('#m-address').value.trim(), note:$('#m-note').value.trim(),
         url:$('#m-url').value.trim(), distance:$('#m-distance').value.trim(), photo:$('#m-photo').value.trim(),
         tips: textToTips($('#m-tips').value), parent: $('#m-parent')?.value || null, planB: $('#m-planb').checked || null,
+        booking: $('#m-booking').value || null, bookingRef: $('#m-bookingRef').value.trim() || null,
         order: ex.order ?? 999 };
       if (!data.title) { toast('請輸入名稱'); return; }
       const targetDayId  = $('#m-target-day')?.value  || dayId;
