@@ -777,6 +777,7 @@ function renderTimelineRow(dayId, it, children) {
             <div class="move-title">${escapeHtml(it.title || '未命名')}</div>
             ${it.distance ? `<div class="move-meta">${escapeHtml(it.distance)}</div>` : ''}
             ${it.note ? `<div class="move-note">${linkify(it.note)}</div>` : ''}
+            ${(Array.isArray(it.tips) ? it.tips.filter(t => t && t.text) : []).map(t => { const m = TIP_META[t.kind] || TIP_META.info; return `<p class="move-tip">${icon(m.icon)}<span><b>${m.label}</b>　${linkify(t.text)}</span></p>`; }).join('')}
           </div>
           ${navTarget ? `<a class="move-nav" href="${it.url && kind === 'stay' ? escapeHtml(it.url) : mapUrl(navTarget)}" target="_blank" rel="noopener" aria-label="導航">${icon('navigation')}</a>` : ''}
         </div>
