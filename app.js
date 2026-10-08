@@ -241,7 +241,7 @@ function bindGlobalEvents() {
   $('#mvClose').addEventListener('click', closeMapView);
   initDrawerDrag();
   // 航班／住宿／交通 圖示 → 打開詳細面板
-  $$('.quick-tile').forEach(b => b.addEventListener('click', () => openSheet(b.dataset.sheet)));
+  $$('.quick-tile[data-sheet]').forEach(b => b.addEventListener('click', () => openSheet(b.dataset.sheet)));
   $('#sheetClose').addEventListener('click', closeSheet);
   $('#infoSheet').addEventListener('click', e => { if (e.target.id === 'infoSheet') closeSheet(); });
   document.addEventListener('keydown', e => {
@@ -441,6 +441,15 @@ function renderCover() {
   $('#coverStrip').textContent = coverStripText(m);
   $('#coverImg').style.backgroundImage = m.coverPhoto ? `url("${m.coverPhoto}")` : '';
   $('#tripMapBtn').hidden = !tripMapDays().some(x => x.anchor);   // 沒有任何地點座標的行程不顯示路線總覽
+  // 行程附帶的指引頁（例：空拍指引），meta.guideUrl 有值才出現第四格
+  const guide = $('#qtGuide');
+  const guideOk = /^(https:\/\/|[\w-]+\/)[\w./#-]*$/.test(m.guideUrl || '');   // 只接受 https 或站內相對路徑
+  guide.hidden = !guideOk;
+  if (guideOk) {
+    guide.href = m.guideUrl;
+    $('#qtGuideLabel').textContent = m.guideTitle || 'Guide';
+    $('#qtGuideCount').textContent = m.guideSub || '';
+  }
   if (currentTab === 'guide') switchTab('itinerary');
 }
 

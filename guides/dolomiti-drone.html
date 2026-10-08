@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#121619" media="(prefers-color-scheme: dark)" />
+<title>多洛米蒂空拍指引</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+/* 與 Trip Planner 同一套色票：米白底、深墨藍字、鼠尾草綠／霧藍／陶土橘 */
+:root {
+  --bg: #f7f6f3; --surface: #fff; --inset: #f4f2ee; --ink: #1c252c; --ink-2: #5b6770; --ink-3: #8a949b;
+  --hair: #e7e3dd; --sage: #627b6d; --fog: #6f9cb5; --clay: #c97757; --blue: #3f7593; --red: #b24a36;
+  --ok-bg: rgba(98,123,109,.14); --warn-bg: rgba(201,119,87,.15); --no-bg: rgba(178,74,54,.12);
+  --display: 'Manrope', 'Noto Sans TC', system-ui, sans-serif;
+  --body: 'Noto Sans TC', system-ui, sans-serif;
+  --serif: 'Noto Serif TC', serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121619; --surface: #1b2125; --inset: #20272c; --ink: #e9ecee; --ink-2: #a9b3ba; --ink-3: #7c868d;
+    --hair: #2b3338; --sage: #8fae9c; --fog: #8fb9d1; --clay: #e09a7c; --blue: #8fb9d1; --red: #e08a76;
+    --ok-bg: rgba(143,174,156,.16); --warn-bg: rgba(224,154,124,.16); --no-bg: rgba(224,138,118,.14);
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.7 var(--body); }
+a { color: var(--blue); }
+
+.top {
+  position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px; background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px);
+  border-bottom: .5px solid var(--hair);
+}
+.back { font: 600 14px var(--display); text-decoration: none; color: var(--ink); white-space: nowrap; }
+.daynav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+.daynav::-webkit-scrollbar { display: none; }
+.daynav a {
+  flex: none; padding: 4px 10px; border-radius: 999px; background: var(--inset); color: var(--ink-2);
+  font: 600 12px var(--display); text-decoration: none;
+}
+
+main { max-width: 760px; margin: 0 auto; padding: 0 16px 80px; }
+.hero { padding: 36px 0 8px; }
+.eyebrow { font: 700 11px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--sage); margin: 0 0 8px; }
+h1 { font: 700 30px/1.25 var(--serif); margin: 0 0 10px; letter-spacing: .01em; }
+.lede { color: var(--ink-2); margin: 0; font-size: 14px; }
+.alert {
+  margin: 20px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--no-bg); color: var(--ink);
+  font-size: 14px;
+}
+.alert b { color: var(--red); }
+
+h2 { font: 700 20px/1.35 var(--serif); margin: 44px 0 4px; scroll-margin-top: 64px; }
+h2 small { display: block; font: 600 12px var(--display); color: var(--ink-3); letter-spacing: .04em; margin-bottom: 2px; }
+h3 { font: 700 16px/1.4 var(--body); margin: 0; }
+
+.card { background: var(--surface); border-radius: 18px; padding: 16px; margin-top: 12px; box-shadow: 0 1px 2px rgba(28,37,44,.04), 0 4px 14px rgba(28,37,44,.05); }
+@media (prefers-color-scheme: dark) { .card { box-shadow: 0 0 0 .5px var(--hair); } }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.badge { flex: none; padding: 3px 9px; border-radius: 999px; font: 700 12px var(--display); white-space: nowrap; }
+.ok { background: var(--ok-bg); color: var(--sage); }
+.warn { background: var(--warn-bg); color: var(--clay); }
+.no { background: var(--no-bg); color: var(--red); }
+.card.is-no { padding: 12px 16px; }
+.card.is-no p { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; }
+.meta { display: grid; grid-template-columns: 56px 1fr; gap: 4px 10px; margin: 12px 0 0; font-size: 14px; }
+.meta dt { color: var(--ink-3); font-weight: 500; }
+.meta dd { margin: 0; }
+.shots { margin: 10px 0 0; padding-left: 20px; font-size: 14px; }
+.shots li { margin: 4px 0; }
+.shots b { font-weight: 700; }
+.main-pick { border: 1.5px solid var(--sage); }
+.pick { font: 700 11px var(--display); color: var(--sage); letter-spacing: .08em; margin: 0 0 4px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: .5px solid var(--hair); vertical-align: top; }
+th { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+.sop { counter-reset: s; list-style: none; padding: 0; margin: 12px 0 0; }
+.sop li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 8px; margin: 8px 0; font-size: 14px; }
+.sop li::before { content: counter(s); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--inset); font: 700 12px var(--display); }
+.foot { margin-top: 48px; color: var(--ink-3); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="back" href="../#trip-sample-wqgjmm9h">← 行程</a>
+  <nav class="daynav" aria-label="跳到日期">
+    <a href="#prep">行前</a><a href="#d25">10/25</a><a href="#d26">10/26</a><a href="#d27">10/27</a>
+    <a href="#d28">10/28</a><a href="#d29">10/29</a><a href="#d30">10/30</a><a href="#sum">總表</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="eyebrow">Drone Field Guide</p>
+    <h1>多洛米蒂空拍指引</h1>
+    <p class="lede">DJI Mini 5 Pro＋標準電池（250 g 以下）｜依 2026-10-08 D-Flight 逐點實查與南提洛省政府圖資整理。區域限制隨時可能變動，每次起飛前仍以 D-Flight 為準。</p>
+    <p class="alert"><b>前提：</b>第三人責任險還沒拿到（10/08 已寄信詢問兩家）。沒有保險，以下全部不能飛。</p>
+  </section>
+
+  <h2 id="prep"><small>BEFORE YOU GO</small>出發前清單</h2>
+  <div class="card">
+    <table>
+      <tr><th>項目</th><th>備註</th></tr>
+      <tr><td>第三人責任險（保額 ≥ 75 萬 SDR）</td><td>保單 PDF 存手機離線</td></tr>
+      <tr><td>D-Flight 業者 QR code</td><td>買機後登記，QR 貼機身</td></tr>
+      <tr><td>只帶標準電池，3 顆以上</td><td>Plus 電池會超過 250 g，規則全變</td></tr>
+      <tr><td>暖暖包、ND8／16／32</td><td>山上 0°C 上下，續航約打 7–8 折；電池放內袋，起飛前才裝</td></tr>
+      <tr><td>DJI Fly 先開過各點地圖</td><td>山區常沒訊號</td></tr>
+    </table>
+    <p class="lede" style="margin-top:12px">10/25（日）凌晨改回冬令時間，時鐘撥慢 1 小時。之後日出約 6:45、日落約 17:05，山谷裡實際更晚亮、更早暗。</p>
+  </div>
+
+  <h2><small>EVERY FLIGHT</small>每次起飛前 30 秒</h2>
+  <div class="card">
+    <ol class="sop">
+      <li><span><b>D-Flight</b> 點一下起飛點，確認 Open max height</span></li>
+      <li><span><b>聽</b>有沒有直升機聲，聽到就立刻降落</span></li>
+      <li><span><b>看</b>起飛點與航線下方沒有人群</span></li>
+      <li><span><b>風</b>：DJI Fly 跳出強風警告就不飛，山口特別注意</span></li>
+      <li><span>把<b>高度上限</b>與返航高度設成該點限高（120／45／25 m）</span></li>
+    </ol>
+  </div>
+
+  <h2><small>10/23 – 10/24</small>威尼斯</h2>
+  <div class="card is-no"><div class="card-head"><h3>威尼斯本島</h3><span class="badge no">禁飛</span></div>
+    <p>多層管制（0 m 紅圈＋25 m＋機場進場帶）加上遊客密集，無人機收在行李。</p></div>
+
+  <h2 id="d25"><small>10/25 SUN</small>Lago Federa → Passo Giau</h2>
+  <div class="card main-pick">
+    <p class="pick">今日主秀</p>
+    <div class="card-head"><h3>Lago Federa</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>湖北岸草地，離步道與山屋露台 30 m 以上</dd>
+      <dt>光線</dt><dd>中午前後湖面最綠；岩壁下午側光最立體</dd>
+      <dt>注意</dt><dd>東南角山屋旁有直升機起降點，聽到就降</dd></dl>
+    <ol class="shots">
+      <li><b>貼湖面前推</b>：離水 3–5 m 往南推，Croda da Lago 從倒影裡升起（Reels 開場）</li>
+      <li><b>垂直俯拍</b>：60–80 m，翡翠湖＋金色落葉松，封面候選</li>
+      <li><b>拉升揭露</b>：從湖面後上拉到 100 m，帶出 Becco di Mezzodì</li>
+      <li><b>直拍版</b>：同樣的鏡頭再拍一次直式，給限動與 Reels</li>
+    </ol>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Passo Giau</h3><span class="badge warn">山口約 25 m</span></div>
+    <dl class="meta"><dt>山口</dt><dd>AVERAU 直升機圓（面板未直接確認），只拍低空：髮夾彎跟車、人站草坡的低空環繞</dd>
+      <dt>出圈</dt><dd>往南走 15–20 分鐘到 Col Piombin／Forcella Giau 方向就是 120 m，回拍 Ra Gusela 全景</dd>
+      <dt>光線</dt><dd>日落前 1 小時（約 16:00）西側斜光</dd>
+      <dt>時間</dt><dd>若 14:30 後才回到停車場，只拍山口低空</dd></dl>
+  </div>
+
+  <h2 id="d26"><small>10/26 MON</small>Misurina → Tre Cime → Monte Piana</h2>
+  <div class="card">
+    <div class="card-head"><h3>Lago di Misurina</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>北岸或東岸（Sport Hotel 這側）</dd>
+      <dt>鏡頭</dt><dd>清晨無風貼湖面拍倒影，往北拉升帶出 Cadini di Misurina</dd>
+      <dt>禁區</dt><dd>西南邊界切過湖南端停車場與 Pio XII，不飛過湖的南端</dd></dl>
+  </div>
+  <div class="card main-pick">
+    <p class="pick">今日主秀</p>
+    <div class="card-head"><h3>Tre Cime 南面</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>Rifugio Auronzo 停車場外圍草地，遠離山屋與直升機坪</dd>
+      <dt>禁區</dt><dd>不越過 Forcella Lavaredo 往北（距公園界只有 21 m）</dd>
+      <dt>注意</dt><dd>Auronzo 是救難直升機起降點，曾有人因此被移送 ENAC</dd></dl>
+    <ol class="shots">
+      <li><b>三峰南壁拉升</b>：步道旁起飛，拉到 100 m 拍岩峰垂直感</li>
+      <li><b>Cadini 側飛</b>：往南飛，Cadini 尖塔群＋下方 Misurina 湖</li>
+      <li><b>步道跟拍</b>：人走在 Auronzo → Lavaredo 寬步道，低空從後方跟</li>
+    </ol>
+  </div>
+  <div class="card is-no"><div class="card-head"><h3>Tre Cime 北面／Locatelli／一戰岩洞</h3><span class="badge no">禁飛</span></div>
+    <p>公園內。「洞口框住三尖山」用相機拍。</p></div>
+  <div class="card">
+    <div class="card-head"><h3>Monte Piana 山頂</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>山頂平台南側、Rifugio Bosi 往上的戰壕區</dd>
+      <dt>禁區</dt><dd>西北 80–100 m 外就是公園，只往東、往南飛</dd>
+      <dt>交通</dt><dd>Jeep 接駁 10 月底不一定開，出發前查</dd></dl>
+    <ol class="shots">
+      <li><b>沿戰壕低空飛</b>：10–20 m，戰壕線條往前延伸，遠方是 Tre Cime 西側</li>
+      <li><b>往南俯瞰</b>：Cadini＋Misurina 湖；可接 Lagazuoi 一戰系列</li>
+    </ol>
+  </div>
+  <div class="card is-no"><div class="card-head"><h3>Forte di Landro／Lago di Landro</h3><span class="badge no">禁飛</span></div>
+    <p>公園內，相機拍堡壘遺跡。</p></div>
+
+  <h2 id="d27"><small>10/27 TUE</small>Braies → Kronplatz → Ortisei</h2>
+  <div class="card is-no"><div class="card-head"><h3>Lago di Braies</h3><span class="badge no">禁飛</span></div>
+    <p>公園＋私人土地。清晨到木船碼頭用相機拍 Seekofel 倒影。</p></div>
+  <div class="card is-no"><div class="card-head"><h3>Kronplatz 山頂</h3><span class="badge no">0 m</span></div>
+    <p>PLAN DE CORONES 直升機圓，半徑約 1 km。相機拍 MMM 的 Zaha Hadid 懸挑窗景。</p></div>
+  <div class="card">
+    <div class="card-head"><h3>Ortisei 鎮區</h3><span class="badge warn">45 m</span></div>
+    <dl class="meta"><dt>鏡頭</dt><dd>傍晚在鎮西側低空拍小鎮燈光</dd>
+      <dt>禁區</dt><dd>鎮東公路旁紅圈 0 m</dd></dl>
+  </div>
+
+  <h2 id="d28"><small>10/28 WED</small>Alpe di Siusi → Seceda</h2>
+  <div class="card main-pick">
+    <p class="pick">今天唯一能空拍的時段，拍滿</p>
+    <div class="card-head"><h3>Alpe di Siusi 草原中央</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>Mont Seuc 上站往西南走 300–500 m 進草原（上站周邊在 45 m 交界）</dd>
+      <dt>光線</dt><dd>上午 Sassolungo 逆光，優先拍俯視與西側的 Sciliar</dd>
+      <dt>注意</dt><dd>Aiut Alpin 救難基地就在山谷下方，直升機常飛越；北緣 Puflatsch 只有 45 m</dd></dl>
+    <ol class="shots">
+      <li><b>俯拍木屋與小路</b>：80–100 m，秋色草原的幾何感</li>
+      <li><b>Sassolungo 前推</b>：低空往東南推，兩座山慢慢變大</li>
+      <li><b>單棟小屋環繞</b>：40 m 慢速環繞，背景輪替 Sciliar 與 Sassolungo</li>
+      <li><b>Hyperlapse</b>：雲影掠過草原（風小才拍）</li>
+    </ol>
+  </div>
+  <div class="card is-no"><div class="card-head"><h3>Seceda</h3><span class="badge no">禁飛</span></div>
+    <p>公園＋山頂 0 m 直升機圓，南側草坡也在內。用相機拍稜線，下午斜光最立體。</p></div>
+
+  <h2 id="d29"><small>10/29 THU</small>Passo Sella → Val di Funes</h2>
+  <div class="card">
+    <div class="card-head"><h3>Passo Sella</h3><span class="badge warn">45 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>山口南側草坡，避開停車場與飯店</dd>
+      <dt>鏡頭</dt><dd>低角度仰拍 Sassolungo 北壁（45 m 反而更有壓迫感）；SS242 髮夾彎車流</dd></dl>
+  </div>
+  <div class="card main-pick">
+    <p class="pick">整趟最經典</p>
+    <div class="card-head"><h3>Santa Maddalena</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>村莊東南往 Ranui 路上的小丘，避開教堂前人群</dd>
+      <dt>光線</dt><dd>15:30–16:30，Odle 受西側斜光</dd>
+      <dt>禁區</dt><dd>Odle 山腳往上是公園（離村莊 600 m 以上），不往山壁飛太遠</dd></dl>
+    <ol class="shots">
+      <li><b>教堂後拉升</b>：從教堂後方低空往後上拉，Odle 鋸齒山群從尖塔後升起</li>
+      <li><b>村莊側飛</b>：60 m 橫移，村莊、牧場、山群三層前後景</li>
+      <li><b>直拍版</b>：同一個拉升再拍直式</li>
+    </ol>
+  </div>
+  <div class="card">
+    <div class="card-head"><h3>Ranui 小教堂</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>收費草地入口外的路邊；草地是私人收費區，照現場規定</dd>
+      <dt>鏡頭</dt><dd>教堂＋Odle 低空前推；俯拍教堂與圍籬的圓形構圖</dd>
+      <dt>光線</dt><dd>日落前 30 分鐘，山群染上 enrosadira 粉紅光</dd></dl>
+  </div>
+
+  <h2 id="d30"><small>10/30 FRI</small>Tramin → Madonna della Corona → Verona</h2>
+  <div class="card">
+    <div class="card-head"><h3>Cantina Tramin</h3><span class="badge warn">45 m</span></div>
+    <dl class="meta"><dt>區域</dt><dd>Bolzano 機場進場區；起飛前先問店員</dd>
+      <dt>鏡頭</dt><dd>20–40 m 繞拍綠色鋼構「葡萄藤」建築；沿葡萄園行列前推</dd></dl>
+  </div>
+  <div class="card main-pick">
+    <p class="pick">今日主秀</p>
+    <div class="card-head"><h3>Madonna della Corona</h3><span class="badge ok">120 m</span></div>
+    <dl class="meta"><dt>起飛</dt><dd>Spiazzi 村邊，不在聖殿前或朝聖步道上</dd>
+      <dt>注意</dt><dd>飛出懸崖後很快變遠，要一直看得到飛機；避開朝聖人群上空</dd>
+      <dt>查詢</dt><dd>D-Flight 要搜 Spiazzi，搜聖殿名會跳到同名小教堂</dd></dl>
+    <ol class="shots">
+      <li><b>懸崖外側拉開</b>：從村邊飛出懸崖，回頭拍聖殿嵌在岩壁、腳下 Adige 河谷</li>
+      <li><b>由下往上揭露</b>：飛到聖殿下方高度慢慢上升，聖殿從岩壁中出現</li>
+    </ol>
+  </div>
+  <div class="card is-no"><div class="card-head"><h3>Verona 市區</h3><span class="badge no">禁飛</span></div>
+    <p>0 m 紅圈＋LI P236 禁航區。</p></div>
+
+  <h2 id="sum"><small>SUMMARY</small>一張表看完</h2>
+  <div class="card">
+    <table>
+      <tr><th>日期</th><th>120 m</th><th>有限高</th><th>禁飛</th></tr>
+      <tr><td>10/25</td><td>Lago Federa</td><td>Passo Giau 25 m</td><td>—</td></tr>
+      <tr><td>10/26</td><td>Misurina、Tre Cime 南面、Monte Piana</td><td>—</td><td>Tre Cime 北面、Landro</td></tr>
+      <tr><td>10/27</td><td>—</td><td>Ortisei 45 m</td><td>Braies、Kronplatz</td></tr>
+      <tr><td>10/28</td><td>Alpe di Siusi 中央</td><td>北緣 45 m</td><td>Seceda</td></tr>
+      <tr><td>10/29</td><td>Santa Maddalena、Ranui</td><td>Passo Sella 45 m</td><td>—</td></tr>
+      <tr><td>10/30</td><td>Madonna della Corona</td><td>Tramin 45 m</td><td>Verona</td></tr>
+    </table>
+  </div>
+
+  <p class="foot">更新：2026-10-09｜判定來源：D-Flight（ENAC／ENAV）、南提洛省政府 GeoBrowser 圖層。</p>
+</main>
+</body>
+</html>

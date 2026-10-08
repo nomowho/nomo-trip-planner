@@ -267,7 +267,7 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 
 /* ── 航班／住宿／交通：極簡圖示入口 ─────────── */
 .quick-tiles {
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;   /* 有指引頁時自動變四格 */
   max-width: calc(1440px - 64px); margin: 16px max(32px, calc((100% - 1440px) / 2 + 32px)) 0;
   padding: 6px; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
 }
@@ -277,6 +277,8 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
   padding: 16px 8px 14px; border: none; background: none; border-radius: 16px; cursor: pointer;
   color: var(--ink); transition: background .15s, transform .12s;
 }
+.quick-tile[hidden] { display: none; }
+a.quick-tile { text-decoration: none; }
 .quick-tile:hover { background: var(--inset); }
 .quick-tile:active { transform: scale(.97); }
 /* 只留單色細線條，不加色塊 */
