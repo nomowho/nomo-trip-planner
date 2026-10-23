@@ -1527,28 +1527,48 @@ function tripIdentity(meta = {}) {
 }
 const signed = (v) => (v >= 0.5 ? '+ ' : v <= -0.5 ? '− ' : '') + ntd(Math.abs(v));
 
-// 某筆支出算在某人身上多少：個人消費＝付款人全額；分攤＝勾選的人平均
+// 某筆支出怎麼分：品項指定了人（owner）＝那個人的個人費用；
+// 剩下的（沒指定的品項、稅、服務費、差額）照原規則：要分攤＝勾選的人平均，不分攤＝付款人自己
 let expFilter = null;   // 只看某位成員的明細（null＝全部）
 const expOpenDays = new Set();   // 展開中的日期（預設全部收合）
-function shareOf(e, m, members, twd) {
-  if (!e.shared) return e.paidBy === m ? twd : 0;
-  const split = (e.splitWith && e.splitWith.length) ? e.splitWith.filter(x => members.includes(x)) : members;
-  return split.includes(m) ? twd / split.length : 0;
+function allocate(e, members, twd) {
+  const personal = {}; members.forEach(m => { personal[m] = 0; });
+  const amt = Number(e.amount) || 0;
+  let own = 0;
+  (Array.isArray(e.items) ? e.items : []).forEach(it => {
+    if (!it.owner || !members.includes(it.owner)) return;
+    // 品項是原幣，用佔總額的比例換成台幣，跟整筆用同一個匯率
+    const v = amt ? (Number(it.amount) || 0) / amt * twd : 0;
+    personal[it.owner] += v; own += v;
+  });
+  if (own > twd) { const k = twd / own; members.forEach(m => { personal[m] *= k; }); own = twd; }
+  const rest = twd - own;
+  const pool = {}; members.forEach(m => { pool[m] = 0; });
+  if (e.shared) {
+    const split = (e.splitWith && e.splitWith.length) ? e.splitWith.filter(x => members.includes(x)) : members;
+    split.forEach(m => { pool[m] += rest / split.length; });
+  } else if (members.includes(e.paidBy)) personal[e.paidBy] += rest;
+  return { personal, pool };
 }
-// 每人：個人支出、共同分攤、代墊的共同支出；net＝代墊−分攤（正＝應收，負＝應付），跟結算同一套算法
+function shareOf(e, m, members, twd) {
+  const a = allocate(e, members, twd);
+  return (a.personal[m] || 0) + (a.pool[m] || 0);
+}
+// 每人：個人支出、共同分攤、付了多少；net＝付的−該負擔的（正＝應收，負＝應付），跟結算同一套算法
 function memberStats(exps, members, twdOf) {
   return members.map(m => {
-    let personal = 0, shared = 0, paid = 0, sharedPaid = 0; const byCat = {};
+    let personal = 0, shared = 0, paid = 0; const byCat = {};
     exps.forEach(e => {
-      const t = twdOf(e), s = shareOf(e, m, members, t);
-      if (e.paidBy === m) { paid += t; if (e.shared) sharedPaid += t; }
-      if (!s) return;
-      if (e.shared) shared += s; else personal += s;
-      byCat[e.category] = (byCat[e.category] || 0) + s;
+      const t = twdOf(e), a = allocate(e, members, t);
+      const p = a.personal[m] || 0, s = a.pool[m] || 0;
+      if (e.paidBy === m) paid += t;
+      personal += p; shared += s;
+      if (p + s) byCat[e.category] = (byCat[e.category] || 0) + p + s;
     });
-    return { m, personal, shared, spent: personal + shared, paid, sharedPaid, net: sharedPaid - shared, byCat };
+    return { m, personal, shared, spent: personal + shared, paid, net: paid - personal - shared, byCat };
   });
 }
+const ownedCount = (e) => (Array.isArray(e.items) ? e.items : []).filter(it => it.owner).length;
 
 function renderExpenses() {
   if (!currentTrip) return;
@@ -1640,7 +1660,8 @@ function renderExpenses() {
           ${g.items.map(e => {
             const m = EXPENSE_META[e.category] || EXPENSE_META.other;
             const orig = (e.currency && e.currency !== home) ? `${e.currency} ${Number(e.amount).toLocaleString()}` : '';
-            const split = e.shared ? `分攤 ${(e.splitWith && e.splitWith.length) ? e.splitWith.length : members.length} 人` : '個人';
+            const owned = ownedCount(e);
+            const split = (e.shared ? `分攤 ${(e.splitWith && e.splitWith.length) ? e.splitWith.length : members.length} 人` : '個人') + (owned ? `（含個人 ${owned} 項）` : '');
             const meta = [`${escapeHtml(e.paidBy || '?')} 付`, split, Array.isArray(e.items) && e.items.length ? `${e.items.length} 項` : ''].filter(Boolean).join(' · ');
             return `
             <article class="exp-row" data-exp="${e.id}">
@@ -1649,7 +1670,7 @@ function renderExpenses() {
                 <div class="exp-title">${escapeHtml(e.title || EXPENSE_CATS[e.category] || '支出')}</div>
                 <div class="exp-meta">${meta}</div>
               </div>
-              <div class="exp-amt"><div class="exp-twd">${ntd(amountOf(e))}</div>${expFilter && e.shared ? `<div class="exp-orig">總額 ${ntd(twdOf(e))}</div>` : (orig ? `<div class="exp-orig">${orig}</div>` : '')}</div>
+              <div class="exp-amt"><div class="exp-twd">${ntd(amountOf(e))}</div>${expFilter && Math.abs(amountOf(e) - twdOf(e)) >= 0.5 ? `<div class="exp-orig">總額 ${ntd(twdOf(e))}</div>` : (orig ? `<div class="exp-orig">${orig}</div>` : '')}</div>
             </article>`;
           }).join('')}
         </div>
@@ -1683,14 +1704,13 @@ function renderSettlement(exps) {
 
   const paid = {}, owed = {};
   members.forEach(m => { paid[m] = 0; owed[m] = 0; });
+  // 每筆：付款人付了全額，每個人負擔自己的個人品項＋平攤份額（純個人消費會自己抵銷）
   exps.forEach(e => {
-    if (!e.shared) return;
     const twd = toTWD(e.amount, e.currency, currentTrip.meta);
-    if (e.paidBy && paid[e.paidBy] !== undefined) paid[e.paidBy] += twd;
-    const split = (e.splitWith && e.splitWith.length) ? e.splitWith.filter(m => members.includes(m)) : members.slice();
-    if (!split.length) return;
-    const each = twd / split.length;
-    split.forEach(m => { owed[m] += each; });
+    if (!members.includes(e.paidBy)) return;
+    paid[e.paidBy] += twd;
+    const a = allocate(e, members, twd);
+    members.forEach(m => { owed[m] += a.personal[m] + a.pool[m]; });
   });
   const bal = members.map(m => ({ m, v: paid[m] - owed[m] }));
 
@@ -1785,9 +1805,11 @@ function openExpenseEditor(expId) {
     </div>
     <div class="field">
       <label>項目明細</label>
+      <p class="field-hint">每項預設平攤；某項是個人的，下拉選人就會算在他身上。稅、服務費和沒列到的差額一律平攤。</p>
       <div id="receiptInfo" class="receipt-info"></div>
       <div id="itemsBox" class="items-box"></div>
       <button type="button" class="ghost-btn" id="addItemBtn">＋ 新增一項</button>
+      <div id="allocHint" class="alloc-hint" hidden></div>
     </div>`,
     () => {
       const amount = Number($('#m-amount').value);
@@ -1813,10 +1835,12 @@ function openExpenseEditor(expId) {
   const syncShared = () => {
     const on = $('#m-shared').checked;
     $('#splitBox').style.display = on ? '' : 'none';
-    $('#sharedHint').textContent = on ? '勾選的人平均分攤，會算進每個人的花費' : `個人消費：只算在付款人（${$('#m-paidBy').value}）身上`;
+    $('#sharedHint').textContent = on ? '勾選的人平均分攤，會算進每個人的花費（下面明細可把個別品項指定給某人）' : `個人消費：只算在付款人（${$('#m-paidBy').value}）身上；明細裡指定給別人的品項仍算那個人的`;
   };
-  $('#m-shared').addEventListener('change', syncShared);
-  $('#m-paidBy').addEventListener('change', syncShared);
+  $('#m-shared').addEventListener('change', () => { syncShared(); renderAllocHint(); });
+  $('#m-paidBy').addEventListener('change', () => { syncShared(); renderAllocHint(); });
+  ['#m-amount', '#m-currency'].forEach(sel => $(sel).addEventListener('input', renderAllocHint));
+  $$('.m-split').forEach(c => c.addEventListener('change', renderAllocHint));
   syncShared();
   renderReceiptItems();
   $('#addItemBtn').addEventListener('click', () => { pendingReceiptItems = collectReceiptItems(); pendingReceiptItems.push({ name: '', name_zh: '', qty: 1, unit_price: 0, amount: 0 }); renderReceiptItems(); });
@@ -1831,6 +1855,10 @@ function renderReceiptItems() {
       <div class="il-main">
         <input class="il-name" value="${escapeHtml(it.name_zh || it.name || '')}" placeholder="品名" aria-label="品名" />
         ${it.name && it.name_zh && it.name !== it.name_zh ? `<small class="il-orig">${escapeHtml(it.name)}</small>` : ''}
+        <select class="il-owner ${it.owner ? 'is-own' : ''}" aria-label="這項誰的">
+          <option value="">平攤</option>
+          ${ownerOpts(it.owner)}
+        </select>
       </div>
       <input class="il-qty" type="number" step="any" value="${it.qty ?? 1}" aria-label="數量" />
       <input class="il-amt" type="number" step="0.01" value="${it.amount ?? ''}" aria-label="金額" />
@@ -1839,6 +1867,9 @@ function renderReceiptItems() {
   box.querySelectorAll('.il-del').forEach(b => b.addEventListener('click', () => {
     pendingReceiptItems = collectReceiptItems(); pendingReceiptItems.splice(+b.closest('.item-line').dataset.i, 1); renderReceiptItems();
   }));
+  box.querySelectorAll('.il-owner').forEach(sel => sel.addEventListener('change', () => { sel.classList.toggle('is-own', !!sel.value); renderAllocHint(); }));
+  box.querySelectorAll('.il-amt').forEach(inp => inp.addEventListener('input', renderAllocHint));
+  renderAllocHint();
   const info = $('#receiptInfo'); const r = pendingReceiptInfo;
   if (info) info.innerHTML = r ? [
     r.merchant && r.address ? `<span class="micro">${icon('map-pin')}${escapeHtml(r.address)}</span>` : '',
@@ -1849,12 +1880,40 @@ function renderReceiptItems() {
     r.receipt_no ? `<span class="micro">${icon('receipt')}${escapeHtml(r.receipt_no)}</span>` : ''
   ].join('') : '';
 }
+function ownerOpts(cur) {
+  const members = getMembers();
+  const list = cur && !members.includes(cur) ? [...members, cur] : members;
+  return list.map(m => `<option value="${escapeHtml(m)}" ${cur === m ? 'selected' : ''}>${escapeHtml(m)} 個人</option>`).join('');
+}
+// 編輯框裡的即時小計：平攤多少、誰個人多少（原幣）
+function renderAllocHint() {
+  const box = $('#allocHint'); if (!box) return;
+  const items = collectReceiptItems();
+  const amount = Number($('#m-amount')?.value) || 0;
+  if (!items.some(it => it.owner) || !amount) { box.hidden = true; box.innerHTML = ''; return; }
+  const members = getMembers();
+  const draft = { amount, items, shared: $('#m-shared').checked, paidBy: $('#m-paidBy').value,
+    splitWith: $$('.m-split').filter(c => c.checked).map(c => c.value) };
+  const a = allocate(draft, members, amount);
+  const cur = $('#m-currency').value;
+  const money = (v) => `${cur} ${(Math.round(v * 100) / 100).toLocaleString('en-US')}`;
+  const own = members.filter(m => a.personal[m] >= 0.005);
+  const poolSum = members.reduce((s, m) => s + a.pool[m], 0);
+  const n = members.filter(m => a.pool[m] > 0).length;
+  const over = items.filter(it => it.owner).reduce((s, it) => s + it.amount, 0) > amount + 0.005;
+  box.hidden = false;
+  box.innerHTML = [
+    draft.shared && poolSum >= 0.005 ? `<span>平攤 <b>${money(poolSum)}</b>${n ? `（${n} 人，每人 ${money(poolSum / n)}）` : ''}</span>` : '',
+    ...own.map(m => `<span>${escapeHtml(m)} 個人 <b>${money(a.personal[m])}</b></span>`),
+    over ? '<span class="is-warn">個人品項加起來超過總額，請檢查金額</span>' : ''
+  ].filter(Boolean).join('');
+}
 function collectReceiptItems() {
   const box = $('#itemsBox'); if (!box) return pendingReceiptItems;
   return [...box.querySelectorAll('.item-line')].map(row => {
     const prev = pendingReceiptItems[+row.dataset.i] || {};
     const zh = row.querySelector('.il-name').value.trim();
-    return { ...prev, name_zh: zh, name: prev.name || zh, qty: Number(row.querySelector('.il-qty').value) || 1, amount: Number(row.querySelector('.il-amt').value) || 0 };
+    return { ...prev, name_zh: zh, name: prev.name || zh, qty: Number(row.querySelector('.il-qty').value) || 1, amount: Number(row.querySelector('.il-amt').value) || 0, owner: row.querySelector('.il-owner').value || null };
   }).filter(x => x.name_zh || x.amount);
 }
 
