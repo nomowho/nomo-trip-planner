@@ -1527,28 +1527,38 @@ function tripIdentity(meta = {}) {
 }
 const signed = (v) => (v >= 0.5 ? '+ ' : v <= -0.5 ? '− ' : '') + ntd(Math.abs(v));
 
-// 某筆支出怎麼分：品項指定了人（owner）＝那個人的個人費用；
+// 某筆支出怎麼分：品項指定 1 人＝那個人的個人費用；指定 2 人以上＝那幾位平分（算共同分攤）；
 // 剩下的（沒指定的品項、稅、服務費、差額）照原規則：要分攤＝勾選的人平均，不分攤＝付款人自己
 let expFilter = null;   // 只看某位成員的明細（null＝全部）
 const expOpenDays = new Set();   // 展開中的日期（預設全部收合）
+// 品項歸屬：owners 陣列（舊資料是單一 owner 字串），只留目前還在的成員
+function itemOwners(it, members) {
+  const list = Array.isArray(it.owners) ? it.owners : (it.owner ? [it.owner] : []);
+  return members ? list.filter(m => members.includes(m)) : list;
+}
 function allocate(e, members, twd) {
-  const personal = {}; members.forEach(m => { personal[m] = 0; });
+  const zero = () => Object.fromEntries(members.map(m => [m, 0]));
+  const personal = zero(), group = zero();
   const amt = Number(e.amount) || 0;
   let own = 0;
   (Array.isArray(e.items) ? e.items : []).forEach(it => {
-    if (!it.owner || !members.includes(it.owner)) return;
+    const who = itemOwners(it, members);
+    if (!who.length) return;
     // 品項是原幣，用佔總額的比例換成台幣，跟整筆用同一個匯率
     const v = amt ? (Number(it.amount) || 0) / amt * twd : 0;
-    personal[it.owner] += v; own += v;
+    who.forEach(m => { (who.length === 1 ? personal : group)[m] += v / who.length; });
+    own += v;
   });
-  if (own > twd) { const k = twd / own; members.forEach(m => { personal[m] *= k; }); own = twd; }
+  if (own > twd) { const k = twd / own; members.forEach(m => { personal[m] *= k; group[m] *= k; }); own = twd; }
   const rest = twd - own;
-  const pool = {}; members.forEach(m => { pool[m] = 0; });
+  const restPool = zero();
   if (e.shared) {
     const split = (e.splitWith && e.splitWith.length) ? e.splitWith.filter(x => members.includes(x)) : members;
-    split.forEach(m => { pool[m] += rest / split.length; });
+    split.forEach(m => { restPool[m] += rest / split.length; });
   } else if (members.includes(e.paidBy)) personal[e.paidBy] += rest;
-  return { personal, pool };
+  // pool＝共同分攤（指定幾位的品項＋剩餘平攤），personal＝只算一個人的
+  const pool = Object.fromEntries(members.map(m => [m, group[m] + restPool[m]]));
+  return { personal, pool, restPool };
 }
 function shareOf(e, m, members, twd) {
   const a = allocate(e, members, twd);
@@ -1568,7 +1578,7 @@ function memberStats(exps, members, twdOf) {
     return { m, personal, shared, spent: personal + shared, paid, net: paid - personal - shared, byCat };
   });
 }
-const ownedCount = (e) => (Array.isArray(e.items) ? e.items : []).filter(it => it.owner).length;
+const ownedCount = (e) => (Array.isArray(e.items) ? e.items : []).filter(it => itemOwners(it).length).length;
 
 function renderExpenses() {
   if (!currentTrip) return;
@@ -1661,7 +1671,7 @@ function renderExpenses() {
             const m = EXPENSE_META[e.category] || EXPENSE_META.other;
             const orig = (e.currency && e.currency !== home) ? `${e.currency} ${Number(e.amount).toLocaleString()}` : '';
             const owned = ownedCount(e);
-            const split = (e.shared ? `分攤 ${(e.splitWith && e.splitWith.length) ? e.splitWith.length : members.length} 人` : '個人') + (owned ? `（含個人 ${owned} 項）` : '');
+            const split = (e.shared ? `分攤 ${(e.splitWith && e.splitWith.length) ? e.splitWith.length : members.length} 人` : '個人') + (owned ? `（含指定 ${owned} 項）` : '');
             const meta = [`${escapeHtml(e.paidBy || '?')} 付`, split, Array.isArray(e.items) && e.items.length ? `${e.items.length} 項` : ''].filter(Boolean).join(' · ');
             return `
             <article class="exp-row" data-exp="${e.id}">
@@ -1805,7 +1815,7 @@ function openExpenseEditor(expId) {
     </div>
     <div class="field">
       <label>項目明細</label>
-      <p class="field-hint">每項預設平攤；某項是個人的，下拉選人就會算在他身上。稅、服務費和沒列到的差額一律平攤。</p>
+      <p class="field-hint">每項預設平攤；點品項下方的「平攤」可以選人：選 1 位算他個人，選幾位就由那幾位平分。稅、服務費和沒列到的差額一律平攤。</p>
       <div id="receiptInfo" class="receipt-info"></div>
       <div id="itemsBox" class="items-box"></div>
       <button type="button" class="ghost-btn" id="addItemBtn">＋ 新增一項</button>
@@ -1835,7 +1845,7 @@ function openExpenseEditor(expId) {
   const syncShared = () => {
     const on = $('#m-shared').checked;
     $('#splitBox').style.display = on ? '' : 'none';
-    $('#sharedHint').textContent = on ? '勾選的人平均分攤，會算進每個人的花費（下面明細可把個別品項指定給某人）' : `個人消費：只算在付款人（${$('#m-paidBy').value}）身上；明細裡指定給別人的品項仍算那個人的`;
+    $('#sharedHint').textContent = on ? '勾選的人平均分攤，會算進每個人的花費（下面明細可把個別品項指定給某幾位）' : `個人消費：只算在付款人（${$('#m-paidBy').value}）身上；明細裡指定給別人的品項仍算那個人的`;
   };
   $('#m-shared').addEventListener('change', () => { syncShared(); renderAllocHint(); });
   $('#m-paidBy').addEventListener('change', () => { syncShared(); renderAllocHint(); });
@@ -1855,19 +1865,29 @@ function renderReceiptItems() {
       <div class="il-main">
         <input class="il-name" value="${escapeHtml(it.name_zh || it.name || '')}" placeholder="品名" aria-label="品名" />
         ${it.name && it.name_zh && it.name !== it.name_zh ? `<small class="il-orig">${escapeHtml(it.name)}</small>` : ''}
-        <select class="il-owner ${it.owner ? 'is-own' : ''}" aria-label="這項誰的">
-          <option value="">平攤</option>
-          ${ownerOpts(it.owner)}
-        </select>
+        <button type="button" class="il-owner" aria-expanded="false" aria-label="這項誰分攤"></button>
       </div>
       <input class="il-qty" type="number" step="any" value="${it.qty ?? 1}" aria-label="數量" />
       <input class="il-amt" type="number" step="0.01" value="${it.amount ?? ''}" aria-label="金額" />
       <button type="button" class="il-del" aria-label="刪除這項">×</button>
+      <div class="il-pick" hidden>
+        ${ownerChoices(itemOwners(it)).map(m => `<button type="button" class="il-chip" data-m="${escapeHtml(m)}" aria-pressed="${itemOwners(it).includes(m)}">${escapeHtml(m)}</button>`).join('')}
+        <span class="il-pick-hint">不選＝平攤；選 1 位＝個人；選多位＝這幾位平分</span>
+      </div>
     </div>`).join('') : '<p class="field-hint">掃描收據會自動列出每個品項，也可以手動新增</p>';
   box.querySelectorAll('.il-del').forEach(b => b.addEventListener('click', () => {
     pendingReceiptItems = collectReceiptItems(); pendingReceiptItems.splice(+b.closest('.item-line').dataset.i, 1); renderReceiptItems();
   }));
-  box.querySelectorAll('.il-owner').forEach(sel => sel.addEventListener('change', () => { sel.classList.toggle('is-own', !!sel.value); renderAllocHint(); }));
+  // 點歸屬按鈕展開成員按鈕，可複選；按鈕文字即時顯示目前狀態
+  box.querySelectorAll('.item-line').forEach(row => {
+    const btn = row.querySelector('.il-owner'), pick = row.querySelector('.il-pick');
+    syncOwnerBtn(row);
+    btn.addEventListener('click', () => { pick.hidden = !pick.hidden; btn.setAttribute('aria-expanded', !pick.hidden); });
+    pick.querySelectorAll('.il-chip').forEach(c => c.addEventListener('click', () => {
+      c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') !== 'true');
+      syncOwnerBtn(row); renderAllocHint();
+    }));
+  });
   box.querySelectorAll('.il-amt').forEach(inp => inp.addEventListener('input', renderAllocHint));
   renderAllocHint();
   const info = $('#receiptInfo'); const r = pendingReceiptInfo;
@@ -1880,17 +1900,24 @@ function renderReceiptItems() {
     r.receipt_no ? `<span class="micro">${icon('receipt')}${escapeHtml(r.receipt_no)}</span>` : ''
   ].join('') : '';
 }
-function ownerOpts(cur) {
+// 成員按鈕：目前成員，加上已被移除但還掛在品項上的名字（才不會悄悄丟掉）
+function ownerChoices(cur) {
   const members = getMembers();
-  const list = cur && !members.includes(cur) ? [...members, cur] : members;
-  return list.map(m => `<option value="${escapeHtml(m)}" ${cur === m ? 'selected' : ''}>${escapeHtml(m)} 個人</option>`).join('');
+  return [...members, ...cur.filter(m => !members.includes(m))];
 }
-// 編輯框裡的即時小計：平攤多少、誰個人多少（原幣）
+const rowOwners = (row) => [...row.querySelectorAll('.il-chip[aria-pressed="true"]')].map(c => c.dataset.m);
+function syncOwnerBtn(row) {
+  const who = rowOwners(row), btn = row.querySelector('.il-owner');
+  btn.textContent = !who.length ? '平攤' : who.length === 1 ? `${who[0]} 個人` : `${who.join('、')} 分攤`;
+  btn.classList.toggle('is-own', who.length === 1);
+  btn.classList.toggle('is-group', who.length > 1);
+}
+// 編輯框裡的即時小計：平攤多少、指定幾位的品項多少、誰個人多少（原幣）
 function renderAllocHint() {
   const box = $('#allocHint'); if (!box) return;
   const items = collectReceiptItems();
   const amount = Number($('#m-amount')?.value) || 0;
-  if (!items.some(it => it.owner) || !amount) { box.hidden = true; box.innerHTML = ''; return; }
+  if (!items.some(it => itemOwners(it).length) || !amount) { box.hidden = true; box.innerHTML = ''; return; }
   const members = getMembers();
   const draft = { amount, items, shared: $('#m-shared').checked, paidBy: $('#m-paidBy').value,
     splitWith: $$('.m-split').filter(c => c.checked).map(c => c.value) };
@@ -1898,14 +1925,22 @@ function renderAllocHint() {
   const cur = $('#m-currency').value;
   const money = (v) => `${cur} ${(Math.round(v * 100) / 100).toLocaleString('en-US')}`;
   const own = members.filter(m => a.personal[m] >= 0.005);
-  const poolSum = members.reduce((s, m) => s + a.pool[m], 0);
-  const n = members.filter(m => a.pool[m] > 0).length;
-  const over = items.filter(it => it.owner).reduce((s, it) => s + it.amount, 0) > amount + 0.005;
+  const restSum = members.reduce((s, m) => s + a.restPool[m], 0);
+  const n = members.filter(m => a.restPool[m] > 0).length;
+  // 指定多位的品項：同一組人合併成一行
+  const groups = {};
+  items.forEach(it => {
+    const who = itemOwners(it, members);
+    if (who.length < 2) return;
+    const k = who.join('＋'); groups[k] = groups[k] || { n: who.length, sum: 0 }; groups[k].sum += it.amount;
+  });
+  const over = items.filter(it => itemOwners(it).length).reduce((s, it) => s + it.amount, 0) > amount + 0.005;
   box.hidden = false;
   box.innerHTML = [
-    draft.shared && poolSum >= 0.005 ? `<span>平攤 <b>${money(poolSum)}</b>${n ? `（${n} 人，每人 ${money(poolSum / n)}）` : ''}</span>` : '',
+    draft.shared && restSum >= 0.005 ? `<span>平攤 <b>${money(restSum)}</b>${n ? `（${n} 人，每人 ${money(restSum / n)}）` : ''}</span>` : '',
+    ...Object.entries(groups).map(([k, g]) => `<span>${escapeHtml(k)} 分攤 <b>${money(g.sum)}</b>（每人 ${money(g.sum / g.n)}）</span>`),
     ...own.map(m => `<span>${escapeHtml(m)} 個人 <b>${money(a.personal[m])}</b></span>`),
-    over ? '<span class="is-warn">個人品項加起來超過總額，請檢查金額</span>' : ''
+    over ? '<span class="is-warn">指定的品項加起來超過總額，請檢查金額</span>' : ''
   ].filter(Boolean).join('');
 }
 function collectReceiptItems() {
@@ -1913,7 +1948,7 @@ function collectReceiptItems() {
   return [...box.querySelectorAll('.item-line')].map(row => {
     const prev = pendingReceiptItems[+row.dataset.i] || {};
     const zh = row.querySelector('.il-name').value.trim();
-    return { ...prev, name_zh: zh, name: prev.name || zh, qty: Number(row.querySelector('.il-qty').value) || 1, amount: Number(row.querySelector('.il-amt').value) || 0, owner: row.querySelector('.il-owner').value || null };
+    return { ...prev, name_zh: zh, name: prev.name || zh, qty: Number(row.querySelector('.il-qty').value) || 1, amount: Number(row.querySelector('.il-amt').value) || 0, owners: rowOwners(row), owner: null };
   }).filter(x => x.name_zh || x.amount);
 }
 
