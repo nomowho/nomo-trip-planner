@@ -304,6 +304,8 @@ function bindGlobalEvents() {
   $('#addExpenseBtn').addEventListener('click', () => openExpenseEditor());
   $('#editMembersBtn').addEventListener('click', openMembersEditor);
   $('#editRatesBtn').addEventListener('click', openRatesEditor);
+  $('#backupBtn').addEventListener('click', openBackupManager);
+  $('#exportCsvBtn').addEventListener('click', exportExpensesCSV);
   // modal
   $('#modalClose').addEventListener('click', closeModal);
   $('#modalCancel').addEventListener('click', closeModal);
@@ -1620,6 +1622,8 @@ function renderExpenses() {
   const rates = getRates();
   $('#ratesChips').textContent = Object.keys(rates).length
     ? Object.entries(rates).map(([c, r]) => `1 ${c} = ${r}`).join('　') : '尚未設定';
+  const lastBk = Object.values(currentTrip.backups || {}).reduce((m, b) => Math.max(m, b.savedAt || 0), 0);
+  $('#backupChips').textContent = lastBk ? `最近 ${fmtStamp(lastBk)}` : '下次記帳時自動建立';
 
   // 每人花費：每張卡講一個故事（應收／應付／已結清）
   if (expFilter && !members.includes(expFilter)) expFilter = null;
@@ -1707,11 +1711,8 @@ function settleKey(t) {
   let h = 5381; for (const ch of s) h = ((h * 33) ^ ch.codePointAt(0)) >>> 0;
   return 'tx-' + h.toString(36);
 }
-function renderSettlement(exps) {
-  const box = $('#settlement');
-  const members = getMembers();
-  if (members.length < 2) { box.innerHTML = `<p class="settle-hint">只有一位成員，不需要分帳。按上方「編輯成員」加入旅伴，就會自動算出誰該付給誰。</p>`; return; }
-
+// 算出每人結餘與最少轉帳（畫面與匯出共用）
+function settleTransfers(exps, members) {
   const paid = {}, owed = {};
   members.forEach(m => { paid[m] = 0; owed[m] = 0; });
   // 每筆：付款人付了全額，每個人負擔自己的個人品項＋平攤份額（純個人消費會自己抵銷）
@@ -1736,6 +1737,13 @@ function renderSettlement(exps) {
     if (Math.abs(debtors[i].v) < 0.5) i++;
     if (Math.abs(creditors[j].v) < 0.5) j++;
   }
+  return { bal, tx };
+}
+function renderSettlement(exps) {
+  const box = $('#settlement');
+  const members = getMembers();
+  if (members.length < 2) { box.innerHTML = `<p class="settle-hint">只有一位成員，不需要分帳。按上方「編輯成員」加入旅伴，就會自動算出誰該付給誰。</p>`; return; }
+  const { bal, tx } = settleTransfers(exps, members);
 
   const settled = currentTrip.settled || {};
   tx.forEach(t => { t.key = settleKey(t); t.done = !!settled[t.key]; });
@@ -1768,10 +1776,121 @@ function renderSettlement(exps) {
   }));
   box.querySelectorAll('.st-done').forEach(b => b.addEventListener('click', () => {
     const card = b.closest('.st-card'), t = tx.find(x => x.key === card.dataset.key);
+    backupExpenses();
     const ref = tripsRef.child(currentTripId).child('settled').child(t.key);
     if (t.done) ref.set(null);
     else ref.set({ from: t.from, to: t.to, amt: Math.round(t.amt), at: Date.now() });
   }));
+}
+
+// ── 記帳備份 ─────────────────────────────
+// 每天第一次有人改記帳前，先把「改之前」的版本存到 trips/<id>/backups/（不含收據照片，保留最近 14 份）。
+// 整個 trips 會同步到每支手機，照片太大不放；完整含照片的版本由 Nomo 電腦每天另存一份
+const BACKUP_KEEP = 14;
+function fmtStamp(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}（${'日一二三四五六'[d.getDay()]}）${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function expenseSnapshot(kind) {
+  const exps = currentTrip.expenses || {}, out = {};
+  let total = 0;
+  Object.entries(exps).forEach(([id, e]) => {
+    const { receiptThumb, ...rest } = e;
+    out[id] = { ...rest, hasThumb: !!receiptThumb };
+    total += toTWD(e.amount, e.currency, currentTrip.meta);
+  });
+  return { kind, savedAt: Date.now(), count: Object.keys(exps).length, totalTWD: Math.round(total),
+    expenses: Object.keys(out).length ? out : null, settled: currentTrip.settled || null };
+}
+function backupExpenses(kind = 'daily') {
+  if (!currentTripId || !currentTrip) return;
+  if (kind === 'daily' && !currentTrip.expenses) return;   // 還沒有帳，不用備份
+  const backups = currentTrip.backups || {};
+  const key = kind === 'daily' ? 'd-' + todayLocal() : `${kind === 'pre-restore' ? 'r' : 'm'}-${Date.now()}`;
+  if (backups[key]) return;
+  const ref = tripsRef.child(currentTripId).child('backups');
+  ref.child(key).set(expenseSnapshot(kind));
+  Object.entries(backups).sort((a, b) => (b[1].savedAt || 0) - (a[1].savedAt || 0))
+    .slice(BACKUP_KEEP - 1).forEach(([k]) => ref.child(k).remove());
+}
+const BACKUP_KIND = { daily: '每日自動', manual: '手動備份', 'pre-restore': '還原前自動存' };
+function openBackupManager() {
+  const list = Object.entries(currentTrip.backups || {}).sort((a, b) => (b[1].savedAt || 0) - (a[1].savedAt || 0));
+  const now = expenseSnapshot('manual');
+  const rows = list.map(([k, b]) => `
+    <div class="bk-row">
+      <div class="bk-main">
+        <div class="bk-title">${fmtStamp(b.savedAt)}<span class="bk-tag">${BACKUP_KIND[b.kind] || ''}</span></div>
+        <div class="bk-meta">${b.count || 0} 筆 · ${ntd(b.totalTWD || 0)}</div>
+      </div>
+      <button type="button" class="ghost-btn bk-restore" data-k="${escapeHtml(k)}">還原</button>
+    </div>`).join('');
+  openModal('備份與還原', `
+    <p class="field-hint">每天第一次有人改記帳時，會自動把改之前的版本存起來，保留最近 ${BACKUP_KEEP} 份。還原時目前的帳會先另存一份，還原錯了可以再退回來。</p>
+    <div class="bk-now"><span>目前</span><b>${now.count} 筆 · ${ntd(now.totalTWD)}</b></div>
+    <div class="bk-actions">
+      <button type="button" class="ghost-btn" id="bkNow">立刻備份一份</button>
+      <button type="button" class="ghost-btn" id="bkCsv">匯出 Excel（CSV）</button>
+    </div>
+    <div class="bk-list">${rows || '<p class="field-hint">還沒有備份，下次有人記帳時會自動建立</p>'}</div>
+    <p class="field-hint">網站備份不含收據照片（照片太大）；還原時同一筆的照片會保留，已刪掉那筆的照片在 Nomo 電腦的每日備份裡。</p>`, null, null);
+  $('#bkNow').addEventListener('click', () => { backupExpenses('manual'); toast('已備份'); setTimeout(openBackupManager, 400); });
+  $('#bkCsv').addEventListener('click', exportExpensesCSV);
+  $$('.bk-restore').forEach(b => b.addEventListener('click', () => restoreBackup(b.dataset.k)));
+}
+function restoreBackup(k) {
+  const b = currentTrip.backups?.[k]; if (!b) return;
+  if (!confirm(`還原到 ${fmtStamp(b.savedAt)} 的版本（${b.count || 0} 筆 · ${ntd(b.totalTWD || 0)}）？\n目前的帳會先自動另存一份。`)) return;
+  backupExpenses('pre-restore');
+  const cur = currentTrip.expenses || {}, exps = {};
+  Object.entries(b.expenses || {}).forEach(([id, e]) => {
+    const { hasThumb, ...rest } = e;
+    exps[id] = { ...rest, receiptThumb: cur[id]?.receiptThumb || null };
+  });
+  tripsRef.child(currentTripId).update({ expenses: Object.keys(exps).length ? exps : null, settled: b.settled || null });
+  touchTrip(); closeModal(); toast('已還原');
+}
+
+// ── 匯出 Excel（CSV，Excel／Numbers 直接開）────────────
+function exportExpensesCSV() {
+  if (!currentTrip) return;
+  const members = getMembers(), meta = currentTrip.meta || {};
+  const exps = Object.entries(currentTrip.expenses || {}).map(([id, e]) => ({ id, ...e }))
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.createdAt || 0) - (b.createdAt || 0));
+  const twdOf = (e) => toTWD(e.amount, e.currency, meta);
+  const blanks = members.map(() => '');
+  const rows = [['日期', '店家／品項', '分類', '幣別', '原幣金額', '台幣', '誰付的', '分攤方式', ...members.map(m => `${m} 負擔`)]];
+  exps.forEach(e => {
+    const t = twdOf(e), a = allocate(e, members, t);
+    const split = e.shared ? `${((e.splitWith && e.splitWith.length) ? e.splitWith.filter(m => members.includes(m)) : members).join('、')} 平攤` : '個人';
+    rows.push([e.date || '', e.title || EXPENSE_CATS[e.category] || '支出', EXPENSE_CATS[e.category] || e.category || '',
+      e.currency || '', e.amount ?? '', Math.round(t), e.paidBy || '', split, ...members.map(m => Math.round(a.personal[m] + a.pool[m]))]);
+    (Array.isArray(e.items) ? e.items : []).forEach(it => {
+      const who = itemOwners(it, members);
+      rows.push(['', `　└ ${it.name_zh || it.name || ''}${it.qty > 1 ? ` ×${it.qty}` : ''}`, '', e.currency || '', it.amount ?? '', '', '',
+        !who.length ? '平攤' : who.length === 1 ? `${who[0]} 個人` : `${who.join('、')} 分攤`, ...blanks]);
+    });
+  });
+  const stats = memberStats(exps, members, twdOf);
+  const pad = ['', '', '', '', '', '', ''];
+  rows.push([], ['每人小計', ...pad, ...members],
+    ['自己的花費', ...pad, ...stats.map(s => Math.round(s.spent))],
+    ['實際付出', ...pad, ...stats.map(s => Math.round(s.paid))],
+    ['應收（+）／應付（−）', ...pad, ...stats.map(s => Math.round(s.net))]);
+  if (members.length > 1) {
+    const { tx } = settleTransfers(exps, members);
+    rows.push([], ['結算轉帳']);
+    tx.forEach(t => rows.push([`${t.from} → ${t.to}`, Math.round(t.amt), currentTrip.settled?.[settleKey(t)] ? '已轉帳' : '']));
+  }
+  rows.push([], [`匯出時間 ${fmtStamp(Date.now())}　匯率：${Object.entries(getRates()).map(([c, r]) => `1 ${c} = ${r}`).join('，')}`]);
+  const cell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const csv = '﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `${(meta.title || 'trip').replace(/[\s/\\:*?"<>|]+/g, '-')}-記帳-${todayLocal()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast('已匯出記帳 CSV');
 }
 
 // ── 費用編輯（含 OCR 掃描） ─────────────────
@@ -1826,6 +1945,7 @@ function openExpenseEditor(expId) {
       if (!amount) { toast('請輸入金額'); return; }
       const shared = $('#m-shared').checked;
       const splitWith = shared ? $$('.m-split').filter(c => c.checked).map(c => c.value) : [];
+      backupExpenses();
       tripsRef.child(currentTripId).child('expenses').child(expId || 'exp-'+uid()).set({
         title: $('#m-title').value.trim(), amount, currency: $('#m-currency').value,
         category: $('#m-category').value, date: $('#m-date').value, paidBy: $('#m-paidBy').value,
@@ -1836,7 +1956,7 @@ function openExpenseEditor(expId) {
       touchTrip();
       closeModal(); toast(expId ? '已更新' : '已記帳');
     },
-    expId ? () => { if (!confirm('刪除這筆支出？')) return; tripsRef.child(currentTripId).child('expenses').child(expId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
+    expId ? () => { if (!confirm('刪除這筆支出？')) return; backupExpenses(); tripsRef.child(currentTripId).child('expenses').child(expId).remove(); touchTrip(); closeModal(); toast('已刪除'); } : null);
 
   // 綁定掃描 + 分攤顯示
   $('#scanBtn').addEventListener('click', () => $('#receiptInput').click());

@@ -1286,6 +1286,18 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 .alloc-hint{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(85,123,137,.08);font-size:13px;color:var(--ink-2,#71787D);font-variant-numeric:tabular-nums}
 .alloc-hint b{color:var(--ink,#1E252B);font-weight:600}
 .alloc-hint .is-warn{flex-basis:100%;color:#C0392B}
+/* 備份與還原 */
+.bk-now{display:flex;justify-content:space-between;align-items:baseline;margin:12px 0;padding:10px 12px;border-radius:10px;background:rgba(85,123,137,.08);font-size:14px;font-variant-numeric:tabular-nums}
+.bk-now span{color:var(--ink-2,#71787D)}
+.bk-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.bk-list{display:flex;flex-direction:column}
+.bk-row{display:flex;align-items:center;gap:12px;padding:12px 2px;border-top:1px solid rgba(120,120,128,.15)}
+.bk-row:last-child{border-bottom:1px solid rgba(120,120,128,.15)}
+.bk-main{flex:1;min-width:0}
+.bk-title{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.bk-tag{margin-left:8px;font-size:11px;font-weight:500;color:var(--ink-2,#71787D)}
+.bk-meta{margin-top:2px;font-size:13px;color:var(--ink-2,#71787D);font-variant-numeric:tabular-nums}
+.bk-restore{flex:none}
 @media (prefers-color-scheme: dark){
   .item-line .il-owner.is-own{color:#E0957F}
   .item-line .il-owner.is-group{color:#8FB1BD}
