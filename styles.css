@@ -1272,6 +1272,11 @@ body:not(.view-mode) .flight-card:hover, body:not(.view-mode) .hotel-card:hover,
 .il-del{height:40px;border:0;background:transparent;color:var(--muted,#8a8a8e);font-size:20px;line-height:1;cursor:pointer;border-radius:10px}
 .il-del:hover,.il-del:focus-visible{background:rgba(255,59,48,.1);color:#ff3b30}
 .scan-btn svg{width:18px;height:18px;margin-right:6px;vertical-align:-3px}
+/* 拍收據＋從相簿選：並排兩顆，主按鈕深色、相簿淺色 */
+.scan-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scan-row .scan-btn{margin-bottom:0}
+.scan-btn-alt{background:var(--fill,rgba(120,120,128,.12));color:var(--ink)}
+.scan-hint{margin:6px 0 16px;font-size:12px;color:var(--ink-2);text-align:center}
 /* 品項歸屬：預設「平攤」安靜灰字；個人＝陶土色、指定幾位＝霧青色；點開是可複選的成員按鈕 */
 .item-line .il-owner{align-self:flex-start;margin-top:2px;padding:4px 10px;font:inherit;font-size:12px;line-height:1.4;border:0;border-radius:12px;background:rgba(120,120,128,.1);color:var(--ink-2,#71787D);max-width:100%;text-align:left;cursor:pointer}
 .item-line .il-owner::after{content:"";display:inline-block;width:5px;height:5px;margin-left:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg)}

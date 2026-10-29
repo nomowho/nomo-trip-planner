@@ -1912,7 +1912,11 @@ function openExpenseEditor(expId) {
   }).join('');
 
   openModal(expId ? '編輯支出' : '記一筆', `
-    <button type="button" class="scan-btn" id="scanBtn">${icon('receipt')}掃描收據，自動帶入明細</button>
+    <div class="scan-row">
+      <button type="button" class="scan-btn" id="scanBtn">${icon('camera')}拍收據</button>
+      <button type="button" class="scan-btn scan-btn-alt" id="pickBtn">${icon('image')}從相簿選</button>
+    </div>
+    <p class="scan-hint">自動帶入店家、金額和每個品項</p>
     <div id="ocrStatus" class="ocr-status" hidden></div>
     <div id="receiptPreview" class="receipt-preview" ${pendingReceiptThumb?'':'hidden'}>
       ${pendingReceiptThumb?`<img src="${pendingReceiptThumb}" /><button type="button" id="rmReceipt">移除收據</button>`:''}
@@ -1960,6 +1964,7 @@ function openExpenseEditor(expId) {
 
   // 綁定掃描 + 分攤顯示
   $('#scanBtn').addEventListener('click', () => $('#receiptInput').click());
+  $('#pickBtn').addEventListener('click', () => $('#receiptPick').click());
   const rm = $('#rmReceipt'); if (rm) rm.addEventListener('click', () => { pendingReceiptThumb = null; $('#receiptPreview').hidden = true; $('#receiptPreview').innerHTML=''; });
   // 不勾分攤＝個人消費，只算在付款人身上（每人花費會照這個統計）
   const syncShared = () => {
@@ -2166,7 +2171,8 @@ function applyReceiptData(d) {
 }
 
 // ── 收據 OCR ───────────────────────────────
-$('#receiptInput')?.addEventListener('change', async (e) => {
+// 拍照（receiptInput，直接開相機）與從相簿選（receiptPick）共用同一套辨識
+async function onReceiptFile(e) {
   const file = e.target.files[0];
   e.target.value = '';
   if (!file) return;
@@ -2201,7 +2207,9 @@ $('#receiptInput')?.addEventListener('change', async (e) => {
     console.error(err);
     if (status) { status.textContent = '⚠ 辨識失敗，請手動輸入'; }
   }
-});
+}
+$('#receiptInput')?.addEventListener('change', onReceiptFile);
+$('#receiptPick')?.addEventListener('change', onReceiptFile);
 
 function applyOcr(text) {
   // 金額：抓所有像 12,34 / 12.34 / 1.234,56 的數字，取最大
